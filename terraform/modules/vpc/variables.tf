@@ -21,3 +21,10 @@ variable "tags" {
   type        = map(string)
   default     = {"Owner" = "OmarSalhi", "Project" = "Kubernetes"}
 }
+
+variable "key_pair_name" {
+  description = "Name of the AWS key pair for EC2 instances"
+  type        = string
+  sensitive   = true
+  default     = ""
+}

@@ -11,6 +11,17 @@ terraform/terraform.tfvars
 terraform/*.tfvars
 terraform/.env
 
+# SSH Keys and Certificates
+*.pem
+*.key
+*.ppk
+*.pub
+id_rsa*
+id_ed25519*
+ssh-keys/
+keys/
+certificates/
+
 # OS files
 .DS_Store
 Thumbs.db

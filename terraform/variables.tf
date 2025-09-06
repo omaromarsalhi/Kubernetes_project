@@ -1,15 +1,4 @@
-# Project Configuration
-variable "project_name" {
-  description = "Name of the project"
-  type        = string
-  default     = "kubernetes-chat-app"
-}
 
-variable "environment" {
-  description = "Environment name"
-  type        = string
-  default     = "dev"
-}
 
 variable "aws_region" {
   description = "AWS region"
@@ -29,9 +18,8 @@ variable "aws_secret_key" {
   sensitive   = true
 }
 
-# Network Configuration
-variable "vpc_cidr" {
-  description = "CIDR block for VPC"
+variable "key_pair_name" {
+  description = "Name of the AWS key pair for EC2 instances"
   type        = string
-  default     = "10.0.0.0/16"
+  sensitive   = true
 }
