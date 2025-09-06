@@ -21,6 +21,10 @@ resource "aws_instance" "bastion" {
   vpc_security_group_ids = [var.security_group_id]
   key_name               = var.key_pair_name
 
+  user_data = base64encode(templatefile("${path.module}/user_data_bastion.sh", {
+    ssh_private_key = file("${path.root}/../my-key-pair.pem")
+  }))
+
   tags = merge(var.tags, {
     Name = "${local.name_prefix}-bastion-host"
     Type = "Bastion"

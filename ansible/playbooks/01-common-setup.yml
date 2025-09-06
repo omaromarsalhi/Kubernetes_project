@@ -1,0 +1,127 @@
+---
+- name: Common System Setup for Kubernetes Cluster
+  hosts: kubernetes
+  become: true
+  vars:
+    ansible_ssh_common_args: '-o ProxyCommand="ssh -W %h:%p -q ec2-user@100.100.27.210 -i /home/ec2-user/.ssh/id_rsa -o StrictHostKeyChecking=no"'
+  tasks:
+    - name: Update system packages
+      yum:
+        name: "*"
+        state: latest
+        update_cache: true
+
+    - name: Install required packages
+      yum:
+        name:
+          - yum-utils
+          - device-mapper-persistent-data
+          - lvm2
+          - wget
+          - curl
+          - net-tools
+          - bind-utils
+        state: present
+
+    - name: Disable swap temporarily
+      command: swapoff -a
+      when: ansible_swaptotal_mb > 0
+
+    - name: Disable swap permanently
+      replace:
+        path: /etc/fstab
+        regexp: '^(\s*)([^#\n]+\s+)(\w+\s+)swap(\s+.*)$'
+        replace: '#\1\2\3swap\4'
+        backup: true
+
+    - name: Load kernel modules
+      modprobe:
+        name: "{{ item }}"
+        state: present
+      loop:
+        - overlay
+        - br_netfilter
+
+    - name: Add kernel modules to load at boot
+      copy:
+        content: |
+          overlay
+          br_netfilter
+        dest: /etc/modules-load.d/k8s.conf
+
+    - name: Set sysctl parameters for Kubernetes
+      sysctl:
+        name: "{{ item.name }}"
+        value: "{{ item.value }}"
+        state: present
+        reload: true
+      loop:
+        - { name: 'net.bridge.bridge-nf-call-iptables', value: '1' }
+        - { name: 'net.bridge.bridge-nf-call-ip6tables', value: '1' }
+        - { name: 'net.ipv4.ip_forward', value: '1' }
+
+    - name: Disable SELinux
+      selinux:
+        state: disabled
+      register: selinux_result
+
+    - name: Disable firewalld
+      systemd:
+        name: firewalld
+        state: stopped
+        enabled: false
+      ignore_errors: true
+
+    - name: Add Docker CE repository
+      get_url:
+        url: https://download.docker.com/linux/centos/docker-ce.repo
+        dest: /etc/yum.repos.d/docker-ce.repo
+        mode: '0644'
+
+    - name: Install Docker CE
+      yum:
+        name:
+          - docker-ce
+          - docker-ce-cli
+          - containerd.io
+          - docker-buildx-plugin
+          - docker-compose-plugin
+        state: present
+
+    - name: Create Docker daemon configuration
+      copy:
+        content: |
+          {
+            "exec-opts": ["native.cgroupdriver=systemd"],
+            "log-driver": "json-file",
+            "log-opts": {
+              "max-size": "100m"
+            },
+            "storage-driver": "overlay2"
+          }
+        dest: /etc/docker/daemon.json
+        mode: '0644'
+      notify: restart docker
+
+    - name: Start and enable Docker
+      systemd:
+        name: docker
+        state: started
+        enabled: true
+
+    - name: Add ec2-user to docker group
+      user:
+        name: ec2-user
+        groups: docker
+        append: true
+
+    - name: Reboot if SELinux was changed
+      reboot:
+        reboot_timeout: 300
+      when: selinux_result.reboot_required | default(false)
+
+  handlers:
+    - name: restart docker
+      systemd:
+        name: docker
+        state: restarted

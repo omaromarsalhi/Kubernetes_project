@@ -1,0 +1,13 @@
+# Worker node specific configuration
+kubernetes_role: "worker"
+kubeadm_join: true
+
+# Node labels
+node_labels:
+  - "node-role.kubernetes.io/worker="
+  - "zone={{ availability_zone }}"
+
+# Kubelet configuration
+kubelet_extra_args:
+  - "--node-labels=zone={{ availability_zone }}"
+  - "--register-with-taints="

@@ -1,0 +1,47 @@
+---
+- name: Join Worker Nodes to Kubernetes Cluster
+  hosts: workers
+  become: true
+  vars:
+    ansible_ssh_common_args: '-o ProxyCommand="ssh -W %h:%p -q ec2-user@100.100.27.210 -i /home/ec2-user/.ssh/id_rsa  -o StrictHostKeyChecking=no"'
+  tasks:
+    - name: Check if node is already joined
+      stat:
+        path: /etc/kubernetes/kubelet.conf
+      register: kubelet_conf
+
+    - name: Read join command from local file
+      local_action:
+        module: slurp
+        src: "../join-command.sh"
+      register: join_command_file
+      when: not kubelet_conf.stat.exists
+
+    - name: Join node to cluster
+      shell: "{{ join_command_file.content | b64decode | trim }}"
+      when: not kubelet_conf.stat.exists and join_command_file is defined
+
+    - name: Start kubelet service
+      systemd:
+        name: kubelet
+        state: started
+        enabled: true
+
+    - name: Wait for node to be ready
+      pause:
+        seconds: 30
+
+    - name: Verify node joined successfully
+      shell: systemctl is-active kubelet
+      register: kubelet_status
+
+    - name: Display join status
+      debug:
+        msg: |
+          ✅ Worker node {{ inventory_hostname }} joined successfully!
+          Kubelet Status: {{ kubelet_status.stdout }}
+          
+          Node Details:
+          - Private IP: {{ ansible_default_ipv4.address }}
+          - Availability Zone: {{ availability_zone }}
+          - Role: {{ kubernetes_role }}

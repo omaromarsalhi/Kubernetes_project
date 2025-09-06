@@ -1,0 +1,110 @@
+---
+- name: Initialize Kubernetes Master Node
+  hosts: masters[0]  # Only the first master
+  become: true
+  vars:
+    ansible_ssh_common_args: '-o ProxyCommand="ssh -W %h:%p -q ec2-user@100.100.27.210 -i /home/ec2-user/.ssh/id_rsa -o StrictHostKeyChecking=no"'
+  tasks:
+    - name: Check if cluster is already initialized
+      stat:
+        path: /etc/kubernetes/admin.conf
+      register: admin_conf
+
+    - name: Initialize Kubernetes cluster
+      command: >
+        kubeadm init
+        --pod-network-cidr={{ pod_network_cidr }}
+        --service-cidr={{ service_subnet }}
+        --apiserver-advertise-address={{ ansible_default_ipv4.address }}
+        --control-plane-endpoint={{ ansible_default_ipv4.address }}:6443
+        --upload-certs
+      register: kubeadm_init
+      when: not admin_conf.stat.exists
+
+    - name: Create .kube directory for ec2-user
+      file:
+        path: /home/ec2-user/.kube
+        state: directory
+        owner: ec2-user
+        group: ec2-user
+        mode: '0755'
+
+    - name: Copy admin.conf to ec2-user kube config
+      copy:
+        src: /etc/kubernetes/admin.conf
+        dest: /home/ec2-user/.kube/config
+        remote_src: true
+        owner: ec2-user
+        group: ec2-user
+        mode: '0644'
+
+    - name: Create .kube directory for root
+      file:
+        path: /root/.kube
+        state: directory
+        mode: '0755'
+
+    - name: Copy admin.conf to root kube config
+      copy:
+        src: /etc/kubernetes/admin.conf
+        dest: /root/.kube/config
+        remote_src: true
+        mode: '0644'
+
+    - name: Generate join command for workers
+      command: kubeadm token create --print-join-command
+      register: join_command
+      when: not admin_conf.stat.exists
+
+    - name: Save join command to local file
+      local_action:
+        module: copy
+        content: "{{ join_command.stdout }}"
+        dest: "../join-command.sh"
+        mode: '0755'
+      when: join_command is defined and join_command.stdout is defined
+
+    - name: Generate certificate key for control plane join
+      command: kubeadm init phase upload-certs --upload-certs
+      register: cert_key
+      when: not admin_conf.stat.exists
+
+    - name: Generate join command for control plane
+      shell: |
+        echo "{{ join_command.stdout }} --control-plane --certificate-key {{ cert_key.stdout_lines[-1] }}"
+      register: control_plane_join
+      when: join_command is defined and cert_key is defined
+
+    - name: Save control plane join command
+      local_action:
+        module: copy
+        content: "{{ control_plane_join.stdout }}"
+        dest: "../control-plane-join-command.sh"
+        mode: '0755'
+      when: control_plane_join is defined
+
+    - name: Wait for all pods to be ready
+      shell: kubectl get pods --all-namespaces --field-selector=status.phase!=Running --no-headers
+      register: pending_pods
+      until: pending_pods.stdout == ""
+      retries: 30
+      delay: 10
+      become_user: ec2-user
+
+    - name: Display cluster status
+      shell: kubectl get nodes
+      register: cluster_nodes
+      become_user: ec2-user
+
+    - name: Show cluster information
+      debug:
+        msg: |
+          ✅ Kubernetes master initialized successfully!
+          
+          Cluster Nodes:
+          {{ cluster_nodes.stdout }}
+          
+          Next steps:
+          1. Install CNI (Container Network Interface)
+          2. Join worker nodes to the cluster
+          3. Join additional master nodes for HA

@@ -1,0 +1,53 @@
+---
+- name: Test Ansible Connectivity to All Hosts
+  hosts: all
+  gather_facts: false
+  tasks:
+    - name: Test connection to all hosts
+      ping:
+      register: ping_result
+
+    - name: Display connection status
+      debug:
+        msg: "✅ Successfully connected to {{ inventory_hostname }} ({{ ansible_host }})"
+      when: ping_result is succeeded
+
+    - name: Gather basic system information
+      setup:
+        gather_subset:
+          - "!all"
+          - "!min"
+          - network
+          - hardware
+      when: ping_result is succeeded
+
+    - name: Display system information
+      debug:
+        msg: |
+          Host: {{ inventory_hostname }}
+          IP: {{ ansible_default_ipv4.address }}
+          OS: {{ ansible_distribution }} {{ ansible_distribution_version }}
+          Architecture: {{ ansible_architecture }}
+          Memory: {{ ansible_memtotal_mb }}MB
+          CPUs: {{ ansible_processor_vcpus }}
+      when: ping_result is succeeded
+
+- name: Test SSH through Bastion
+  hosts: kubernetes
+  gather_facts: false
+  vars:
+    ansible_ssh_common_args: '-o ProxyCommand="ssh -W %h:%p -q ec2-user@100.100.27.210 -i ../../my-key-pair.pem -o StrictHostKeyChecking=no"'
+  tasks:
+    - name: Test connection through bastion
+      ping:
+      register: bastion_ping
+
+    - name: Confirm bastion connectivity
+      debug:
+        msg: "✅ Successfully connected to {{ inventory_hostname }} through bastion"
+      when: bastion_ping is succeeded
+
+    - name: Fail if connection through bastion failed
+      fail:
+        msg: "❌ Failed to connect to {{ inventory_hostname }} through bastion"
+      when: bastion_ping is failed

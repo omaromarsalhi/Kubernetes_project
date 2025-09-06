@@ -1,0 +1,85 @@
+---
+- name: Join Additional Master Nodes for High Availability
+  hosts: masters[1:]  # All masters except the first one
+  become: true
+  vars:
+    ansible_ssh_common_args: '-o ProxyCommand="ssh -W %h:%p -q ec2-user@100.100.27.210 -i /home/ec2-user/.ssh/id_rsa  -o StrictHostKeyChecking=no"'
+  tasks:
+    - name: Check if master is already joined
+      stat:
+        path: /etc/kubernetes/admin.conf
+      register: admin_conf
+
+    - name: Read control plane join command
+      local_action:
+        module: slurp
+        src: "../control-plane-join-command.sh"
+      register: cp_join_command
+      when: not admin_conf.stat.exists
+
+    - name: Join master to cluster
+      shell: "{{ cp_join_command.content | b64decode | trim }}"
+      when: not admin_conf.stat.exists and cp_join_command is defined
+
+    - name: Create .kube directory for ec2-user
+      file:
+        path: /home/ec2-user/.kube
+        state: directory
+        owner: ec2-user
+        group: ec2-user
+        mode: '0755'
+
+    - name: Copy admin.conf to ec2-user kube config
+      copy:
+        src: /etc/kubernetes/admin.conf
+        dest: /home/ec2-user/.kube/config
+        remote_src: true
+        owner: ec2-user
+        group: ec2-user
+        mode: '0644'
+
+    - name: Wait for master node to be ready
+      pause:
+        seconds: 60
+
+    - name: Verify master node status
+      shell: kubectl get nodes {{ inventory_hostname }} -o wide
+      register: master_status
+      become_user: ec2-user
+
+    - name: Display HA master status
+      debug:
+        msg: |
+          ✅ Master node {{ inventory_hostname }} joined for HA!
+          
+          Master Status:
+          {{ master_status.stdout }}
+          
+          📊 High Availability Setup Complete!
+
+- name: Verify High Availability Cluster
+  hosts: masters[0]
+  become: false
+  vars:
+    ansible_ssh_common_args: '-o ProxyCommand="ssh -W %h:%p -q ec2-user@100.100.27.210 -i ../../my-key-pair.pem -o StrictHostKeyChecking=no"'
+  tasks:
+    - name: Get all cluster nodes
+      shell: kubectl get nodes -o wide
+      register: all_nodes
+
+    - name: Get control plane status
+      shell: kubectl get pods -n kube-system | grep -E "(kube-apiserver|kube-controller-manager|kube-scheduler|etcd)"
+      register: control_plane_pods
+
+    - name: Display final cluster status
+      debug:
+        msg: |
+          🎉 HIGH AVAILABILITY KUBERNETES CLUSTER READY! 🎉
+          
+          📊 All Cluster Nodes:
+          {{ all_nodes.stdout }}
+          
+          🔧 Control Plane Components:
+          {{ control_plane_pods.stdout }}
+          
+          ✅ Your multi-master Kubernetes cluster is now operational!

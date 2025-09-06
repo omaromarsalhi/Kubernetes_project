@@ -1,0 +1,65 @@
+---
+- name: Install Kubernetes Dependencies
+  hosts: kubernetes
+  become: true
+  vars:
+    ansible_ssh_common_args: '-o ProxyCommand="ssh -W %h:%p -q ec2-user@100.100.27.210 -i /home/ec2-user/.ssh/id_rsa -o StrictHostKeyChecking=no"'
+    kubernetes_version: "1.28.2"
+  tasks:
+    - name: Add Kubernetes repository
+      yum_repository:
+        name: kubernetes
+        description: Kubernetes Repository
+        baseurl: https://pkgs.k8s.io/core:/stable:/v1.28/rpm/
+        enabled: true
+        gpgcheck: true
+        gpgkey: https://pkgs.k8s.io/core:/stable:/v1.28/rpm/repodata/repomd.xml.key
+        exclude: kubelet kubeadm kubectl cri-tools kubernetes-cni
+
+    - name: Install Kubernetes components
+      yum:
+        name:
+          - kubelet-{{ kubernetes_version }}
+          - kubeadm-{{ kubernetes_version }}
+          - kubectl-{{ kubernetes_version }}
+        state: present
+        disable_excludes: kubernetes
+
+    - name: Hold Kubernetes packages
+      command: yum versionlock add kubelet kubeadm kubectl
+      ignore_errors: true
+
+    - name: Configure kubelet
+      copy:
+        content: |
+          KUBELET_EXTRA_ARGS=--node-ip={{ ansible_default_ipv4.address }}
+        dest: /etc/sysconfig/kubelet
+        mode: '0644'
+
+    - name: Enable kubelet service
+      systemd:
+        name: kubelet
+        enabled: true
+
+    - name: Pull Kubernetes images (masters only)
+      command: kubeadm config images pull
+      when: kubernetes_role == "master"
+
+    - name: Verify Docker is running
+      systemd:
+        name: docker
+        state: started
+
+    - name: Verify kubelet is enabled
+      systemd:
+        name: kubelet
+        enabled: true
+
+    - name: Display installation status
+      debug:
+        msg: |
+          ✅ Kubernetes {{ kubernetes_version }} components installed successfully on {{ inventory_hostname }}
+          - kubelet: enabled
+          - kubeadm: installed
+          - kubectl: installed
+          - Docker: running
