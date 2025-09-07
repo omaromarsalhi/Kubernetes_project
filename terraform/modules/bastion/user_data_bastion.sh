@@ -1,8 +1,8 @@
 #!/bin/bash
 
-# Simple Ansible installation script for bastion host
-yum update -y
-yum install -y python3 python3-pip
+# Simple Ansible installation script for bastion host - Amazon Linux 2023
+dnf update -y
+dnf install -y python3 python3-pip
 pip3 install ansible
 
 # Copy the SSH key from repository and set proper permissions

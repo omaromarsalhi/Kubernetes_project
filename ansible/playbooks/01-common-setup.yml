@@ -1,26 +1,27 @@
 ---
-- name: Common System Setup for Kubernetes Cluster
+- name: Common System Setup for Kubernetes Cluster - Amazon Linux 2023
   hosts: kubernetes
   become: true
   vars:
-    ansible_ssh_common_args: '-o ProxyCommand="ssh -W %h:%p -q ec2-user@100.100.27.210 -i /home/ec2-user/.ssh/id_rsa -o StrictHostKeyChecking=no"'
+    ansible_ssh_common_args: '-o ProxyCommand="ssh -W %h:%p -q ec2-user@{{ hostvars["bastion-host"]["ansible_host"] }} -i /home/ec2-user/.ssh/id_rsa -o StrictHostKeyChecking=no"'
   tasks:
-    - name: Update system packages
-      yum:
+    - name: Update system packages (Amazon Linux 2023)
+      dnf:
         name: "*"
         state: latest
         update_cache: true
 
     - name: Install required packages
-      yum:
+      dnf:
         name:
-          - yum-utils
+          - dnf-utils
           - device-mapper-persistent-data
           - lvm2
           - wget
-          - curl
           - net-tools
           - bind-utils
+          - python3-libselinux
+          - python3-pip
         state: present
 
     - name: Disable swap temporarily
@@ -60,10 +61,23 @@
         - { name: 'net.bridge.bridge-nf-call-ip6tables', value: '1' }
         - { name: 'net.ipv4.ip_forward', value: '1' }
 
-    - name: Disable SELinux
-      selinux:
-        state: disabled
-      register: selinux_result
+    - name: Check SELinux status
+      command: getenforce
+      register: selinux_status
+      ignore_errors: true
+
+    - name: Disable SELinux temporarily
+      command: setenforce 0
+      when: selinux_status.stdout == "Enforcing"
+      ignore_errors: true
+
+    - name: Disable SELinux permanently
+      replace:
+        path: /etc/selinux/config
+        regexp: '^SELINUX=enforcing'
+        replace: 'SELINUX=disabled'
+        backup: true
+      register: selinux_config_result
 
     - name: Disable firewalld
       systemd:
@@ -72,21 +86,18 @@
         enabled: false
       ignore_errors: true
 
-    - name: Add Docker CE repository
-      get_url:
-        url: https://download.docker.com/linux/centos/docker-ce.repo
-        dest: /etc/yum.repos.d/docker-ce.repo
-        mode: '0644'
-
-    - name: Install Docker CE
-      yum:
-        name:
-          - docker-ce
-          - docker-ce-cli
-          - containerd.io
-          - docker-buildx-plugin
-          - docker-compose-plugin
+    - name: Install Docker on Amazon Linux 2023
+      dnf:
+        name: docker
         state: present
+
+    - name: Install Docker Compose using binary installation
+      get_url:
+        url: "https://github.com/docker/compose/releases/latest/download/docker-compose-linux-x86_64"
+        dest: /usr/local/bin/docker-compose
+        mode: '0755'
+        owner: root
+        group: root
 
     - name: Create Docker daemon configuration
       copy:
@@ -118,7 +129,7 @@
     - name: Reboot if SELinux was changed
       reboot:
         reboot_timeout: 300
-      when: selinux_result.reboot_required | default(false)
+      when: selinux_config_result.changed | default(false)
 
   handlers:
     - name: restart docker

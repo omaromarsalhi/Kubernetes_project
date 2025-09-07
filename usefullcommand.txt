@@ -1,0 +1,1 @@
+terraform destroy -target=module.bastion -target=module.ec2_cluster

@@ -35,3 +35,10 @@ variable "tags" {
   type        = map(string)
   default     = {}
 }
+
+
+variable "volume_size" {
+  description = "Size of the root EBS volume in GB"
+  type        = number
+  default     = 30
+}

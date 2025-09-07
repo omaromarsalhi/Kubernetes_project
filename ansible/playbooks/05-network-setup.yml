@@ -1,13 +1,131 @@
 ---
-- name: Install Flannel CNI Network Plugin
+- name: Install and Configure Flannel CNI Network Plugin
   hosts: masters[0]
   become: false
   vars:
-    ansible_ssh_common_args: '-o ProxyCommand="ssh -W %h:%p -q ec2-user@100.100.27.210 -i /home/ec2-user/.ssh/id_rsa  -o StrictHostKeyChecking=no"'
+    ansible_ssh_common_args: '-o ProxyCommand="ssh -W %h:%p -q ec2-user@{{ hostvars["bastion-host"]["ansible_host"] }} -i /home/ec2-user/.ssh/id_rsa -o StrictHostKeyChecking=no"'
     flannel_version: "v0.22.3"
   tasks:
+    - name: Wait for API server to be ready
+      wait_for:
+        host: "{{ ansible_default_ipv4.address }}"
+        port: 6443
+        timeout: 300
+
+    - name: Wait for basic cluster readiness
+      shell: kubectl get nodes --no-headers --kubeconfig=/etc/kubernetes/admin.conf
+      register: cluster_check
+      until: cluster_check.rc == 0
+      retries: 20
+      delay: 15
+
+    - name: Check if CoreDNS deployment exists
+      shell: kubectl get deployment coredns -n kube-system --kubeconfig=/etc/kubernetes/admin.conf --no-headers
+      register: coredns_exists
+      ignore_errors: true
+
+    - name: Apply proper CoreDNS configuration
+      shell: |
+        kubectl apply -f - <<EOF --kubeconfig=/etc/kubernetes/admin.conf
+        apiVersion: v1
+        kind: Service
+        metadata:
+          name: kube-dns
+          namespace: kube-system
+          labels:
+            k8s-app: kube-dns
+        spec:
+          selector:
+            k8s-app: kube-dns
+          clusterIP: 10.96.0.10
+          ports:
+          - name: dns
+            port: 53
+            protocol: UDP
+          - name: dns-tcp
+            port: 53
+            protocol: TCP
+        ---
+        apiVersion: apps/v1
+        kind: Deployment
+        metadata:
+          name: coredns
+          namespace: kube-system
+          labels:
+            k8s-app: kube-dns
+        spec:
+          replicas: 2
+          selector:
+            matchLabels:
+              k8s-app: kube-dns
+          template:
+            metadata:
+              labels:
+                k8s-app: kube-dns
+            spec:
+              serviceAccountName: coredns
+              containers:
+              - name: coredns
+                image: registry.k8s.io/coredns/coredns:v1.10.1
+                imagePullPolicy: IfNotPresent
+                args: [ "-conf", "/etc/coredns/Corefile" ]
+                volumeMounts:
+                - name: config-volume
+                  mountPath: /etc/coredns
+                  readOnly: true
+                ports:
+                - containerPort: 53
+                  name: dns
+                  protocol: UDP
+                - containerPort: 53
+                  name: dns-tcp
+                  protocol: TCP
+                - containerPort: 9153
+                  name: metrics
+                  protocol: TCP
+                securityContext:
+                  allowPrivilegeEscalation: false
+                  capabilities:
+                    add:
+                    - NET_BIND_SERVICE
+                    drop:
+                    - all
+                  readOnlyRootFilesystem: true
+                livenessProbe:
+                  httpGet:
+                    path: /health
+                    port: 8080
+                    scheme: HTTP
+                  initialDelaySeconds: 60
+                  timeoutSeconds: 5
+                  successThreshold: 1
+                  failureThreshold: 5
+                readinessProbe:
+                  httpGet:
+                    path: /ready
+                    port: 8181
+                    scheme: HTTP
+              volumes:
+              - name: config-volume
+                configMap:
+                  name: coredns
+                  items:
+                  - key: Corefile
+                    path: Corefile
+        EOF
+      when: coredns_exists.rc != 0
+      ignore_errors: true
+
+    - name: Wait for CoreDNS to be ready
+      shell: kubectl get pods -n kube-system -l k8s-app=kube-dns --no-headers --kubeconfig=/etc/kubernetes/admin.conf | grep -v Running
+      register: coredns_pods
+      until: coredns_pods.stdout == ""
+      retries: 30
+      delay: 10
+      ignore_errors: true
+
     - name: Check if Flannel is already installed
-      shell: kubectl get pods -n kube-flannel | grep flannel
+      shell: kubectl get pods -n kube-flannel --no-headers --kubeconfig=/etc/kubernetes/admin.conf 2>/dev/null | wc -l
       register: flannel_check
       ignore_errors: true
 
@@ -16,36 +134,45 @@
         url: "https://github.com/flannel-io/flannel/releases/latest/download/kube-flannel.yml"
         dest: "/tmp/kube-flannel.yml"
         mode: '0644'
-      when: flannel_check.rc != 0
+      when: flannel_check.stdout == "0"
 
     - name: Apply Flannel CNI
-      shell: kubectl apply -f /tmp/kube-flannel.yml
-      when: flannel_check.rc != 0
+      shell: kubectl apply -f /tmp/kube-flannel.yml --kubeconfig=/etc/kubernetes/admin.conf
+      when: flannel_check.stdout == "0"
+      register: flannel_apply
+
+    - name: Wait for Flannel namespace to be created
+      shell: kubectl get namespace kube-flannel --kubeconfig=/etc/kubernetes/admin.conf
+      register: flannel_ns
+      until: flannel_ns.rc == 0
+      retries: 15
+      delay: 10
+      when: flannel_apply is changed
 
     - name: Wait for Flannel pods to be ready
-      shell: kubectl get pods -n kube-flannel --field-selector=status.phase!=Running --no-headers
+      shell: kubectl get pods -n kube-flannel --field-selector=status.phase!=Running --no-headers --kubeconfig=/etc/kubernetes/admin.conf
       register: flannel_pods
       until: flannel_pods.stdout == ""
-      retries: 20
+      retries: 40
       delay: 15
 
     - name: Wait for all nodes to be ready
-      shell: kubectl get nodes --no-headers | grep -v Ready | wc -l
+      shell: kubectl get nodes --no-headers --kubeconfig=/etc/kubernetes/admin.conf | grep -v Ready | wc -l
       register: not_ready_nodes
       until: not_ready_nodes.stdout == "0"
-      retries: 15
-      delay: 20
+      retries: 20
+      delay: 30
 
     - name: Get cluster nodes status
-      shell: kubectl get nodes -o wide
+      shell: kubectl get nodes -o wide --kubeconfig=/etc/kubernetes/admin.conf
       register: nodes_status
 
     - name: Get Flannel pods status
-      shell: kubectl get pods -n kube-flannel -o wide
+      shell: kubectl get pods -n kube-flannel -o wide --kubeconfig=/etc/kubernetes/admin.conf
       register: flannel_status
 
     - name: Get all system pods status
-      shell: kubectl get pods -n kube-system
+      shell: kubectl get pods -n kube-system --kubeconfig=/etc/kubernetes/admin.conf
       register: system_pods
 
     - name: Display network setup results

@@ -19,3 +19,4 @@ api_server_advertise_address: "{{ ansible_default_ipv4.address }}"
 # Flannel CNI configuration
 flannel_version: "v0.22.3"
 flannel_backend: "vxlan"
+

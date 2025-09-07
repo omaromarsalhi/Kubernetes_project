@@ -2,14 +2,19 @@ locals {
   name_prefix = "${var.project_name}-${var.environment}"
 }
 
-# Data source for latest Amazon Linux 2 AMI
+# Data source for latest Amazon Linux 2023 AMI
 data "aws_ami" "amazon_linux" {
   most_recent = true
   owners      = ["amazon"]
 
   filter {
     name   = "name"
-    values = ["amzn2-ami-hvm-*-x86_64-gp2"]
+    values = ["al2023-ami-*-x86_64"]
+  }
+
+  filter {
+    name   = "virtualization-type"
+    values = ["hvm"]
   }
 }
 
@@ -24,6 +29,13 @@ resource "aws_instance" "bastion" {
   user_data = base64encode(templatefile("${path.module}/user_data_bastion.sh", {
     ssh_private_key = file("${path.root}/../my-key-pair.pem")
   }))
+
+  root_block_device {
+    volume_type = "gp2"
+    volume_size = var.volume_size
+    encrypted   = false
+    delete_on_termination = true
+  }
 
   tags = merge(var.tags, {
     Name = "${local.name_prefix}-bastion-host"

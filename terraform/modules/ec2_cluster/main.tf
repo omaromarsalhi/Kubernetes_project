@@ -2,14 +2,19 @@ locals {
   name_prefix = "${var.project_name}-${var.environment}"
 }
 
-# Data source for latest Amazon Linux 2 AMI
+# Data source for latest Amazon Linux 2023 AMI
 data "aws_ami" "amazon_linux" {
   most_recent = true
   owners      = ["amazon"]
 
   filter {
     name   = "name"
-    values = ["amzn2-ami-hvm-*-x86_64-gp2"]
+    values = ["al2023-ami-*-x86_64"]
+  }
+
+  filter {
+    name   = "virtualization-type"
+    values = ["hvm"]
   }
 }
 
@@ -23,7 +28,14 @@ resource "aws_instance" "master_1a" {
   vpc_security_group_ids = [var.security_group_id]
   key_name               = var.key_pair_name
 
-  user_data = base64encode("#!/bin/bash\nyum update -y")
+  user_data = base64encode("#!/bin/bash\ndnf update -y")
+
+  root_block_device {
+    volume_type = "gp2"
+    volume_size = var.volume_size
+    encrypted   = false
+    delete_on_termination = true
+  }
 
   tags = merge(var.tags, {
     Name = "${local.name_prefix}-master-1a"
@@ -43,7 +55,14 @@ resource "aws_instance" "master_1b" {
   vpc_security_group_ids = [var.security_group_id]
   key_name               = var.key_pair_name
 
-  user_data = base64encode("#!/bin/bash\nyum update -y")
+  user_data = base64encode("#!/bin/bash\ndnf update -y")
+
+  root_block_device {
+    volume_type = "gp2"
+    volume_size = var.volume_size
+    encrypted   = false
+    delete_on_termination = true
+  }
 
   tags = merge(var.tags, {
     Name = "${local.name_prefix}-master-1b"
@@ -63,7 +82,14 @@ resource "aws_instance" "worker" {
   vpc_security_group_ids = [var.security_group_id]
   key_name               = var.key_pair_name
 
-  user_data = base64encode("#!/bin/bash\nyum update -y")
+  user_data = base64encode("#!/bin/bash\ndnf update -y")
+
+  root_block_device {
+    volume_type = "gp2"
+    volume_size = var.volume_size
+    encrypted   = false
+    delete_on_termination = true
+  }
 
   tags = merge(var.tags, {
     Name = "${local.name_prefix}-worker-${count.index + 1}"

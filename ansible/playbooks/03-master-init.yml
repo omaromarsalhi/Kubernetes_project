@@ -2,24 +2,45 @@
 - name: Initialize Kubernetes Master Node
   hosts: masters[0]  # Only the first master
   become: true
+  vars_files:
+    - ../group_vars/all.yml
   vars:
-    ansible_ssh_common_args: '-o ProxyCommand="ssh -W %h:%p -q ec2-user@100.100.27.210 -i /home/ec2-user/.ssh/id_rsa -o StrictHostKeyChecking=no"'
+    ansible_ssh_common_args: '-o ProxyCommand="ssh -W %h:%p -q ec2-user@{{ hostvars["bastion-host"]["ansible_host"] }} -i /home/ec2-user/.ssh/id_rsa -o StrictHostKeyChecking=no"'
   tasks:
     - name: Check if cluster is already initialized
       stat:
         path: /etc/kubernetes/admin.conf
       register: admin_conf
 
+    - name: Clean up any previous failed initialization
+      shell: |
+        kubeadm reset -f
+        rm -rf /etc/kubernetes/manifests/*
+        rm -rf /var/lib/etcd/*
+        systemctl stop kubelet
+        systemctl start kubelet
+      when: admin_conf.stat.exists and admin_conf.stat.size < 1000
+      ignore_errors: true
+
+    - name: Wait for kubelet to be ready after cleanup
+      systemd:
+        name: kubelet
+        state: started
+      when: admin_conf.stat.exists and admin_conf.stat.size < 1000
+
     - name: Initialize Kubernetes cluster
       command: >
         kubeadm init
-        --pod-network-cidr={{ pod_network_cidr }}
+        --pod-network-cidr={{ pod_subnet }}
         --service-cidr={{ service_subnet }}
         --apiserver-advertise-address={{ ansible_default_ipv4.address }}
         --control-plane-endpoint={{ ansible_default_ipv4.address }}:6443
         --upload-certs
+        --skip-phases=addon/coredns
       register: kubeadm_init
       when: not admin_conf.stat.exists
+      retries: 3
+      delay: 30
 
     - name: Create .kube directory for ec2-user
       file:
@@ -51,10 +72,32 @@
         remote_src: true
         mode: '0644'
 
-    - name: Generate join command for workers
+    - name: Wait for API server to be ready
+      wait_for:
+        host: "{{ ansible_default_ipv4.address }}"
+        port: 6443
+        timeout: 300
+      when: kubeadm_init is changed
+
+    - name: Verify API server is responsive
+      shell: kubectl get nodes --kubeconfig=/etc/kubernetes/admin.conf
+      register: api_test
+      until: api_test.rc == 0
+      retries: 10
+      delay: 15
+      when: kubeadm_init is changed
+
+    - name: Set proper KUBECONFIG for ec2-user
+      lineinfile:
+        path: /home/ec2-user/.bashrc
+        line: 'export KUBECONFIG=/home/ec2-user/.kube/config'
+        create: yes
+        owner: ec2-user
+        group: ec2-user
+
+    - name: Generate fresh join command for workers
       command: kubeadm token create --print-join-command
       register: join_command
-      when: not admin_conf.stat.exists
 
     - name: Save join command to local file
       local_action:
@@ -62,18 +105,16 @@
         content: "{{ join_command.stdout }}"
         dest: "../join-command.sh"
         mode: '0755'
-      when: join_command is defined and join_command.stdout is defined
 
+    # Always generate fresh certificate key
     - name: Generate certificate key for control plane join
       command: kubeadm init phase upload-certs --upload-certs
       register: cert_key
-      when: not admin_conf.stat.exists
 
     - name: Generate join command for control plane
       shell: |
         echo "{{ join_command.stdout }} --control-plane --certificate-key {{ cert_key.stdout_lines[-1] }}"
       register: control_plane_join
-      when: join_command is defined and cert_key is defined
 
     - name: Save control plane join command
       local_action:
@@ -81,30 +122,45 @@
         content: "{{ control_plane_join.stdout }}"
         dest: "../control-plane-join-command.sh"
         mode: '0755'
-      when: control_plane_join is defined
 
-    - name: Wait for all pods to be ready
-      shell: kubectl get pods --all-namespaces --field-selector=status.phase!=Running --no-headers
-      register: pending_pods
-      until: pending_pods.stdout == ""
+    - name: Display current join command
+      debug:
+        msg: |
+          Fresh join command generated:
+          {{ join_command.stdout }}
+
+    - name: Wait for core control plane components to be ready
+      shell: kubectl get pods -n kube-system -l tier=control-plane --no-headers --kubeconfig=/etc/kubernetes/admin.conf | grep -v Running
+      register: control_plane_pods
+      until: control_plane_pods.stdout == ""
       retries: 30
       delay: 10
-      become_user: ec2-user
+      become_user: root
+      ignore_errors: true
 
     - name: Display cluster status
-      shell: kubectl get nodes
+      shell: kubectl get nodes --kubeconfig=/etc/kubernetes/admin.conf
       register: cluster_nodes
-      become_user: ec2-user
+      become_user: root
+
+    - name: Display CNI status
+      shell: kubectl get pods -n kube-system --kubeconfig=/etc/kubernetes/admin.conf | grep -E "(flannel|coredns)"
+      register: cni_status
+      become_user: root
+      ignore_errors: true
 
     - name: Show cluster information
       debug:
         msg: |
-          ✅ Kubernetes master initialized successfully!
+          Kubernetes master status:
           
           Cluster Nodes:
           {{ cluster_nodes.stdout }}
           
+          CNI Status:
+          {{ cni_status.stdout | default('CNI pods still starting...') }}
+          
           Next steps:
-          1. Install CNI (Container Network Interface)
+          1. Wait for all system pods to be Running
           2. Join worker nodes to the cluster
           3. Join additional master nodes for HA
