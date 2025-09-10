@@ -72,6 +72,30 @@ resource "aws_subnet" "private_1b" {
   })
 }
 
+# Additional Private Subnet in us-east-1a
+resource "aws_subnet" "private_1a_additional" {
+  vpc_id            = aws_vpc.keubernetes_vpc.id
+  cidr_block        = "10.0.5.0/24"
+  availability_zone = "us-east-1a"
+
+  tags = merge(var.tags, {
+    Name = "${local.name_prefix}-private-subnet-1a-additional"
+    Type = "Private"
+  })
+}
+
+# Additional Private Subnet in us-east-1b
+resource "aws_subnet" "private_1b_additional" {
+  vpc_id            = aws_vpc.keubernetes_vpc.id
+  cidr_block        = "10.0.6.0/24"
+  availability_zone = "us-east-1b"
+
+  tags = merge(var.tags, {
+    Name = "${local.name_prefix}-private-subnet-1b-additional"
+    Type = "Private"
+  })
+}
+
 # Elastic IP for NAT Gateway in us-east-1a
 resource "aws_eip" "nat_1a" {
   domain = "vpc"
@@ -140,8 +164,8 @@ resource "aws_route_table_association" "public_1b" {
   route_table_id = aws_route_table.public.id
 }
 
-# Route Table for Private Subnet 1a
-resource "aws_route_table" "private_1a" {
+# Single Route Table for All Private Subnets
+resource "aws_route_table" "private" {
   vpc_id = aws_vpc.keubernetes_vpc.id
 
   route {
@@ -150,32 +174,30 @@ resource "aws_route_table" "private_1a" {
   }
 
   tags = merge(var.tags, {
-    Name = "${local.name_prefix}-private-rt-1a"
-  })
-}
-
-# Route Table for Private Subnet 1b
-resource "aws_route_table" "private_1b" {
-  vpc_id = aws_vpc.keubernetes_vpc.id
-
-  route {
-    cidr_block     = "0.0.0.0/0"
-    nat_gateway_id = aws_nat_gateway.nat_1b.id
-  }
-
-  tags = merge(var.tags, {
-    Name = "${local.name_prefix}-private-rt-1b"
+    Name = "${local.name_prefix}-private-rt"
   })
 }
 
 # Route Table Association for Private Subnet 1a
 resource "aws_route_table_association" "private_1a" {
   subnet_id      = aws_subnet.private_1a.id
-  route_table_id = aws_route_table.private_1a.id
+  route_table_id = aws_route_table.private.id
 }
 
 # Route Table Association for Private Subnet 1b
 resource "aws_route_table_association" "private_1b" {
   subnet_id      = aws_subnet.private_1b.id
-  route_table_id = aws_route_table.private_1b.id
+  route_table_id = aws_route_table.private.id
+}
+
+# Route Table Association for Additional Private Subnet 1a
+resource "aws_route_table_association" "private_1a_additional" {
+  subnet_id      = aws_subnet.private_1a_additional.id
+  route_table_id = aws_route_table.private.id
+}
+
+# Route Table Association for Additional Private Subnet 1b
+resource "aws_route_table_association" "private_1b_additional" {
+  subnet_id      = aws_subnet.private_1b_additional.id
+  route_table_id = aws_route_table.private.id
 }

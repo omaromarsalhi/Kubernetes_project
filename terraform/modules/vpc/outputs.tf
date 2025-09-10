@@ -40,7 +40,17 @@ output "private_subnet_1b_id" {
 
 output "private_subnet_ids" {
   description = "List of private subnet IDs"
-  value       = [aws_subnet.private_1a.id, aws_subnet.private_1b.id]
+  value       = [aws_subnet.private_1a.id, aws_subnet.private_1b.id, aws_subnet.private_1a_additional.id, aws_subnet.private_1b_additional.id]
+}
+
+output "private_subnet_1a_additional_id" {
+  description = "ID of the additional private subnet in us-east-1a"
+  value       = aws_subnet.private_1a_additional.id
+}
+
+output "private_subnet_1b_additional_id" {
+  description = "ID of the additional private subnet in us-east-1b"
+  value       = aws_subnet.private_1b_additional.id
 }
 
 output "nat_gateway_1a_id" {
@@ -73,17 +83,12 @@ output "public_route_table_id" {
   value       = aws_route_table.public.id
 }
 
-output "private_route_table_1a_id" {
-  description = "ID of the private route table for us-east-1a"
-  value       = aws_route_table.private_1a.id
-}
-
-output "private_route_table_1b_id" {
-  description = "ID of the private route table for us-east-1b"
-  value       = aws_route_table.private_1b.id
+output "private_route_table_id" {
+  description = "ID of the private route table"
+  value       = aws_route_table.private.id
 }
 
 output "private_route_table_ids" {
   description = "List of private route table IDs"
-  value       = [aws_route_table.private_1a.id, aws_route_table.private_1b.id]
+  value       = [aws_route_table.private.id]
 }

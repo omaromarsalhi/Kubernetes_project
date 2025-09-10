@@ -1,0 +1,228 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AWS Architecture Flowchart</title>
+    <script src="https://cdn.jsdelivr.net/npm/mermaid@10.6.1/dist/mermaid.min.js"></script>
+    <script>
+        mermaid.initialize({ startOnLoad: true, theme: 'default' });
+    </script>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #f5f7fa 0%, #e4efe9 100%);
+            margin: 0;
+            padding: 20px;
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+        .container {
+            max-width: 1200px;
+            width: 100%;
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 8px 30px rgba(0, 0, 0, 0.12);
+            padding: 25px;
+            margin-top: 20px;
+        }
+        h1 {
+            color: #2c3e50;
+            text-align: center;
+            margin-bottom: 25px;
+            font-weight: 600;
+        }
+        .description {
+            color: #546e7a;
+            text-align: center;
+            max-width: 800px;
+            margin: 0 auto 30px;
+            line-height: 1.6;
+        }
+        .flowchart-container {
+            overflow: auto;
+        }
+        .legend {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 15px;
+            justify-content: center;
+            margin-top: 30px;
+            padding: 20px;
+            background: #f8f9fa;
+            border-radius: 8px;
+        }
+        .legend-item {
+            display: flex;
+            align-items: center;
+            margin-right: 15px;
+        }
+        .legend-color {
+            width: 20px;
+            height: 20px;
+            border-radius: 4px;
+            margin-right: 8px;
+            border: 2px solid;
+        }
+        .footer {
+            margin-top: 30px;
+            text-align: center;
+            color: #7f8c8d;
+            font-size: 0.9rem;
+        }
+    </style>
+</head>
+<body>
+    <h1>AWS Architecture Overview</h1>
+    <p class="description">
+        This flowchart illustrates a multi-AZ AWS infrastructure with public and private subnets, 
+        Kubernetes cluster components, and associated networking resources.
+    </p>
+    
+    <div class="container">
+        <div class="flowchart-container">
+            <div class="mermaid">
+flowchart TB
+    Internet["Internet"] --> IGW["Internet Gateway"]
+    
+    subgraph AWS_Region["AWS Region: us-east-1"]
+        subgraph VPC["VPC: 10.0.0.0/16"]
+            IGW
+            
+            subgraph AZ_A["Availability Zone A"]
+                subgraph Public_A["Public Subnet"]
+                    Bastion["Bastion Host<br>10.0.2.10"]
+                    NAT_A["NAT Gateway A"]
+                end
+                
+                subgraph Private_A["Private Subnet"]
+                    Master1["Master Node 1<br>10.0.1.10"]
+                    Worker1["Worker Node 1<br>10.0.1.11"]
+                    Worker2["Worker Node 2<br>10.0.1.12"]
+                end
+
+                subgraph Etcd_A["Etcd Subnet AZ-A"]
+                    Etcd1["Etcd Node A<br>10.0.4.10"]
+                    EBS_A["EBS Volume AZ-A<br>Pods/Workers Storage"]
+                end
+            end
+            
+            subgraph AZ_B["Availability Zone B"]
+                subgraph Public_B["Public Subnet"]
+                    ALB["Application Load Balancer"]
+                    NAT_B["NAT Gateway B"]
+                end
+                
+                subgraph Private_B["Private Subnet"]
+                    Master2["Master Node 2<br>10.0.3.10"]
+                    Worker3["Worker Node 3<br>10.0.3.11"]
+                    Worker4["Worker Node 4<br>10.0.3.12"]
+                end
+
+                subgraph Etcd_B["Etcd Subnet AZ-B"]
+                    Etcd2["Etcd Node B<br>10.0.5.10"]
+                    EBS_B["EBS Volume AZ-B<br>Pods/Workers Storage"]
+                end
+            end
+        end
+    end
+
+    %% Internet Connectivity
+    IGW --> ALB
+    IGW --> Bastion
+    
+    %% Bastion Host Management Access
+    Bastion -.->|SSH| Master1
+    Bastion -.->|SSH| Master2
+    Bastion -.->|SSH| Etcd1
+    Bastion -.->|SSH| Etcd2
+    
+    %% Master Node Communication with Etcd
+    Master1 <-->|etcd| Etcd1
+    Master2 <-->|etcd| Etcd2
+
+    %% Load Balancer to Workers
+    ALB -->|traffic| Worker1
+    ALB -->|traffic| Worker2
+    ALB -->|traffic| Worker3
+    ALB -->|traffic| Worker4
+    
+    %% Storage Connections
+    EBS_A --> Private_A
+    EBS_B --> Private_B
+    
+    %% NAT Gateway Connectivity
+    NAT_A -.-> Private_A
+    NAT_B -.-> Private_B
+
+    %% Styling
+    classDef master fill:#FECACA,stroke:#dc2626,stroke-width:2px,color:#000
+    classDef worker fill:#BFDBFE,stroke:#2563eb,stroke-width:2px,color:#000
+    classDef nat fill:#FDE68A,stroke:#f59e0b,stroke-width:2px,color:#000
+    classDef alb fill:#FDBA74,stroke:#ea580c,stroke-width:2px,color:#000
+    classDef storage fill:#DDD6FE,stroke:#7c3aed,stroke-width:2px,color:#000
+    classDef access fill:#BBF7D0,stroke:#16a34a,stroke-width:2px,color:#000
+    classDef igw fill:#99F6E4,stroke:#059669,stroke-width:2px,color:#000
+    classDef etcd fill:#FDE8FF,stroke:#9b5cf6,stroke-width:2px,color:#000
+
+    Bastion:::access
+    NAT_A:::nat
+    NAT_B:::nat
+    Master1:::master
+    Master2:::master
+    Worker1:::worker
+    Worker2:::worker
+    Worker3:::worker
+    Worker4:::worker
+    ALB:::alb
+    IGW:::igw
+    Etcd1:::etcd
+    Etcd2:::etcd
+    EBS_A:::storage
+    EBS_B:::storage
+            </div>
+        </div>
+        
+        <div class="legend">
+            <div class="legend-item">
+                <div class="legend-color" style="background-color: #FECACA; border-color: #dc2626"></div>
+                <span>Master Nodes</span>
+            </div>
+            <div class="legend-item">
+                <div class="legend-color" style="background-color: #BFDBFE; border-color: #2563eb"></div>
+                <span>Worker Nodes</span>
+            </div>
+            <div class="legend-item">
+                <div class="legend-color" style="background-color: #FDE68A; border-color: #f59e0b"></div>
+                <span>NAT Gateway</span>
+            </div>
+            <div class="legend-item">
+                <div class="legend-color" style="background-color: #FDBA74; border-color: #ea580c"></div>
+                <span>Load Balancer</span>
+            </div>
+            <div class="legend-item">
+                <div class="legend-color" style="background-color: #DDD6FE; border-color: #7c3aed"></div>
+                <span>Storage</span>
+            </div>
+            <div class="legend-item">
+                <div class="legend-color" style="background-color: #BBF7D0; border-color: #16a34a"></div>
+                <span>Bastion Host</span>
+            </div>
+            <div class="legend-item">
+                <div class="legend-color" style="background-color: #99F6E4; border-color: #059669"></div>
+                <span>Internet Gateway</span>
+            </div>
+            <div class="legend-item">
+                <div class="legend-color" style="background-color: #FDE8FF; border-color: #9b5cf6"></div>
+                <span>Etcd Nodes</span>
+            </div>
+        </div>
+    </div>
+    
+    <div class="footer">
+        <p>AWS Architecture Diagram | Created with Mermaid.js</p>
+    </div>
+</body>
+</html>
