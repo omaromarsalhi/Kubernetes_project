@@ -1,0 +1,14 @@
+---
+haproxy_stats_port: 8399
+haproxy_stats_user: admin
+haproxy_stats_pass: omar123  # Change this in production
+etcd_port: 2379
+kube_port: 6443
+etcd_hosts:
+  - { name: etcd1, ip: "{{ hostvars['etcd1'].ansible_host }}" }
+  - { name: etcd2, ip: "{{ hostvars['etcd2'].ansible_host }}" }
+  # - { name: etcd3, ip: "{{ hostvars['etcd3'].ansible_host }}" }  # Uncomment if you have etcd3
+master_hosts:
+  - { name: master1, ip: "{{ hostvars['master1'].ansible_host }}" }
+  - { name: master2, ip: "{{ hostvars['master2'].ansible_host }}" }
+  # - { name: master3, ip: "{{ hostvars['master3'].ansible_host }}" }  # Uncomment if you have master3

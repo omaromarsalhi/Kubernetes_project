@@ -1,0 +1,7 @@
+---
+- name: Install and Configure HAProxy for Kubernetes Cluster
+  hosts: load_balancer
+  become: true
+
+  roles:
+    - haproxy

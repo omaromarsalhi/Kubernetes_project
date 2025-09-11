@@ -210,43 +210,43 @@ flowchart TB
             IGW
             
             subgraph AZ_1A["Availability Zone 1a"]
-                subgraph Public_1A["Public Subnet<br>10.0.1.0/24"]
+                subgraph Public_1A["Public Subnet<br>10.0.11.0/24"]
                     Bastion["Bastion Host"]
                     NAT_1A["NAT Gateway 1a"]
                 end
                 
-                subgraph Private_1A["Private Subnet<br>10.0.2.0/24"]
+                subgraph Private_1A["Private Subnet<br>10.0.12.0/24"]
                     Master_1A["Master Node 1a"]
                     Worker_1A["Worker Node 1a"]
                 end
 
-                subgraph Etcd_1A["Additional Private<br>10.0.5.0/24"]
+                subgraph Etcd_1A["Additional Private<br>10.0.13.0/24"]
                     EtcdNode_1A["Etcd Node 1a"]
                 end
             end
             
             subgraph AZ_1B["Availability Zone 1b"]
-                subgraph Public_1B["Public Subnet<br>10.0.3.0/24"]
+                subgraph Public_1B["Public Subnet<br>10.0.21.0/24"]
                     LoadBalancer["Load Balancer<br>EC2 + Nginx"]
                     NAT_1B["NAT Gateway 1b"]
                 end
                 
-                subgraph Private_1B["Private Subnet<br>10.0.4.0/24"]
+                subgraph Private_1B["Private Subnet<br>10.0.22.0/24"]
                     Master_1B["Master Node 1b"]
                     Worker_1B["Worker Node 1b"]
                 end
 
-                subgraph Etcd_1B["Additional Private<br>10.0.6.0/24"]
+                subgraph Etcd_1B["Additional Private<br>10.0.23.0/24"]
                     EtcdNode_1B["Etcd Node 1b"]
                 end
             end
             
             subgraph AZ_1C["Availability Zone 1c"]
-                subgraph Public_1C["Public Subnet<br>10.0.8.0/24"]
+                subgraph Public_1C["Public Subnet<br>10.0.31.0/24"]
                     NAT_1C["NAT Gateway 1c"]
                 end
                 
-                subgraph Private_1C["Private Subnet<br>10.0.7.0/24"]
+                subgraph Private_1C["Private Subnet<br>10.0.32.0/24"]
                     Storage_1C["NFS Storage Server"]
                 end
             end

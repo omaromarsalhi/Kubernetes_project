@@ -1,0 +1,172 @@
+---
+- name: Update system packages
+  dnf:
+    name: "*"
+    state: latest
+
+- name: Install required packages
+  dnf:
+    name:
+      - wget
+      - tar
+      - openssl
+    state: present
+
+- name: Create etcd user
+  user:
+    name: etcd
+    system: yes
+    shell: /sbin/nologin
+    create_home: no
+
+- name: Create etcd directories
+  file:
+    path: "{{ item }}"
+    state: directory
+    owner: etcd
+    group: etcd
+    mode: '0755'
+  loop:
+    - /etc/etcd
+    - /var/lib/etcd
+    - /etc/ssl/etcd
+
+- name: Download etcd binary
+  get_url:
+    url: "{{ etcd_download_url }}"
+    dest: /tmp/etcd-{{ etcd_version }}-linux-amd64.tar.gz
+    mode: '0644'
+
+- name: Extract etcd binary
+  unarchive:
+    src: /tmp/etcd-{{ etcd_version }}-linux-amd64.tar.gz
+    dest: /tmp/
+    remote_src: yes
+
+- name: Install etcd binaries
+  copy:
+    src: "/tmp/etcd-{{ etcd_version }}-linux-amd64/{{ item }}"
+    dest: "/usr/local/bin/{{ item }}"
+    mode: '0755'
+    remote_src: yes
+  loop:
+    - etcd
+    - etcdctl
+
+- name: Generate CA certificate
+  command: >
+    openssl req -new -x509 -days 3650 -nodes
+    -keyout /etc/ssl/etcd/ca.key
+    -out /etc/ssl/etcd/ca.crt
+    -subj "/CN=etcd-ca"
+  args:
+    creates: /etc/ssl/etcd/ca.crt
+
+- name: Generate server certificate
+  command: >
+    openssl req -new -nodes
+    -keyout /etc/ssl/etcd/server.key
+    -out /etc/ssl/etcd/server.csr
+    -subj "/CN={{ ansible_hostname }}"
+  args:
+    creates: /etc/ssl/etcd/server.key
+
+- name: Sign server certificate
+  command: >
+    openssl x509 -req -days 3650
+    -in /etc/ssl/etcd/server.csr
+    -CA /etc/ssl/etcd/ca.crt
+    -CAkey /etc/ssl/etcd/ca.key
+    -CAcreateserial
+    -out /etc/ssl/etcd/server.crt
+  args:
+    creates: /etc/ssl/etcd/server.crt
+
+- name: Generate peer certificate
+  command: >
+    openssl req -new -nodes
+    -keyout /etc/ssl/etcd/peer.key
+    -out /etc/ssl/etcd/peer.csr
+    -subj "/CN={{ ansible_hostname }}"
+  args:
+    creates: /etc/ssl/etcd/peer.key
+
+- name: Sign peer certificate
+  command: >
+    openssl x509 -req -days 3650
+    -in /etc/ssl/etcd/peer.csr
+    -CA /etc/ssl/etcd/ca.crt
+    -CAkey /etc/ssl/etcd/ca.key
+    -CAcreateserial
+    -out /etc/ssl/etcd/peer.crt
+  args:
+    creates: /etc/ssl/etcd/peer.crt
+
+- name: Set certificate permissions
+  file:
+    path: "{{ item }}"
+    owner: etcd
+    group: etcd
+    mode: '0600'
+  loop:
+    - /etc/ssl/etcd/ca.key
+    - /etc/ssl/etcd/server.key
+    - /etc/ssl/etcd/peer.key
+
+- name: Set certificate permissions (readable)
+  file:
+    path: "{{ item }}"
+    owner: etcd
+    group: etcd
+    mode: '0644'
+  loop:
+    - /etc/ssl/etcd/ca.crt
+    - /etc/ssl/etcd/server.crt
+    - /etc/ssl/etcd/peer.crt
+
+- name: Deploy etcd configuration
+  template:
+    src: etcd.conf.j2
+    dest: /etc/etcd/etcd.conf
+    owner: etcd
+    group: etcd
+    mode: '0644'
+  notify: Restart etcd
+
+- name: Deploy systemd service
+  template:
+    src: etcd.service.j2
+    dest: /etc/systemd/system/etcd.service
+    mode: '0644'
+  notify: Restart etcd
+
+- name: Enable etcd service
+  systemd:
+    name: etcd
+    enabled: yes
+    daemon_reload: yes
+
+- name: Start etcd service
+  systemd:
+    name: etcd
+    state: started
+
+- name: Wait for etcd to be ready
+  wait_for:
+    host: "{{ ansible_host }}"
+    port: 2379
+    timeout: 60
+
+- name: Verify etcd cluster health
+  command: >
+    /usr/local/bin/etcdctl --endpoints=https://{{ ansible_host }}:2379
+    --cacert=/etc/ssl/etcd/ca.crt
+    --cert=/etc/ssl/etcd/server.crt
+    --key=/etc/ssl/etcd/server.key
+    endpoint health
+  register: etcd_health
+  changed_when: false
+
+- name: Display etcd health status
+  debug:
+    msg: "{{ etcd_health.stdout }}"

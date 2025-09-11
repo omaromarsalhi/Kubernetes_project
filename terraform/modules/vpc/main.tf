@@ -25,7 +25,7 @@ resource "aws_internet_gateway" "main" {
 # Public Subnet in us-east-1a
 resource "aws_subnet" "public_1a" {
   vpc_id                  = aws_vpc.keubernetes_vpc.id
-  cidr_block              = "10.0.1.0/24"
+  cidr_block              = "10.0.11.0/24"
   availability_zone       = "us-east-1a"
   map_public_ip_on_launch = true
 
@@ -38,7 +38,7 @@ resource "aws_subnet" "public_1a" {
 # Private Subnet in us-east-1a
 resource "aws_subnet" "private_1a" {
   vpc_id            = aws_vpc.keubernetes_vpc.id
-  cidr_block        = "10.0.2.0/24"
+  cidr_block        = "10.0.12.0/24"
   availability_zone = "us-east-1a"
 
   tags = merge(var.tags, {
@@ -50,7 +50,7 @@ resource "aws_subnet" "private_1a" {
 # Public Subnet in us-east-1b
 resource "aws_subnet" "public_1b" {
   vpc_id                  = aws_vpc.keubernetes_vpc.id
-  cidr_block              = "10.0.3.0/24"
+  cidr_block              = "10.0.21.0/24"
   availability_zone       = "us-east-1b"
   map_public_ip_on_launch = true
 
@@ -63,7 +63,7 @@ resource "aws_subnet" "public_1b" {
 # Public Subnet in us-east-1c for NAT Gateway
 resource "aws_subnet" "public_1c" {
   vpc_id                  = aws_vpc.keubernetes_vpc.id
-  cidr_block              = "10.0.8.0/24"
+  cidr_block              = "10.0.31.0/24"
   availability_zone       = "us-east-1c"
   map_public_ip_on_launch = true
 
@@ -76,7 +76,7 @@ resource "aws_subnet" "public_1c" {
 # Private Subnet in us-east-1b
 resource "aws_subnet" "private_1b" {
   vpc_id            = aws_vpc.keubernetes_vpc.id
-  cidr_block        = "10.0.4.0/24"
+  cidr_block        = "10.0.22.0/24"
   availability_zone = "us-east-1b"
 
   tags = merge(var.tags, {
@@ -88,7 +88,7 @@ resource "aws_subnet" "private_1b" {
 # Additional Private Subnet in us-east-1a
 resource "aws_subnet" "private_1a_additional" {
   vpc_id            = aws_vpc.keubernetes_vpc.id
-  cidr_block        = "10.0.5.0/24"
+  cidr_block        = "10.0.13.0/24"
   availability_zone = "us-east-1a"
 
   tags = merge(var.tags, {
@@ -100,7 +100,7 @@ resource "aws_subnet" "private_1a_additional" {
 # Additional Private Subnet in us-east-1b
 resource "aws_subnet" "private_1b_additional" {
   vpc_id            = aws_vpc.keubernetes_vpc.id
-  cidr_block        = "10.0.6.0/24"
+  cidr_block        = "10.0.23.0/24"
   availability_zone = "us-east-1b"
 
   tags = merge(var.tags, {
@@ -112,7 +112,7 @@ resource "aws_subnet" "private_1b_additional" {
 # Private Subnet in us-east-1c for Storage
 resource "aws_subnet" "private_1c" {
   vpc_id            = aws_vpc.keubernetes_vpc.id
-  cidr_block        = "10.0.7.0/24"
+  cidr_block        = "10.0.32.0/24"
   availability_zone = "us-east-1c"
 
   tags = merge(var.tags, {

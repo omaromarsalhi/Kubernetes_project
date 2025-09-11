@@ -1,0 +1,22 @@
+[Unit]
+Description=etcd - highly-available key value store
+Documentation=https://etcd.io/docs/
+After=network.target
+Wants=network-online.target
+
+[Service]
+Type=notify
+User=etcd
+Group=etcd
+EnvironmentFile=/etc/etcd/etcd.conf
+ExecStart=/usr/local/bin/etcd
+Restart=always
+RestartSec=5
+LimitNOFILE=40000
+TimeoutStartSec=0
+
+# Configure startup timeout
+TimeoutStartSec=300
+
+[Install]
+WantedBy=multi-user.target

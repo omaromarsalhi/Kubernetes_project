@@ -1,0 +1,50 @@
+global
+    log /dev/log    local0
+    log /dev/log    local1 notice
+    chroot /var/lib/haproxy
+    stats timeout 30s
+    daemon
+
+defaults
+    log     global
+    mode    http
+    option  httplog
+    option  dontlognull
+    timeout connect 5000
+    timeout client  50000
+    timeout server  50000
+
+frontend stats
+    bind *:{{ haproxy_stats_port }}
+    stats enable
+    stats uri /stats_secure
+    stats refresh 10s
+    stats auth {{ haproxy_stats_user }}:{{ haproxy_stats_pass }}
+
+frontend etcd-main
+    bind {{ ansible_host }}:{{ etcd_port }}
+    retries 3
+    mode tcp
+    option tcplog
+    default_backend etcd-main-backend
+
+frontend kube-main
+    bind {{ ansible_host }}:{{ kube_port }}
+    retries 3
+    mode tcp
+    option tcplog
+    default_backend kube-main-backend
+
+backend etcd-main-backend
+    mode tcp
+    balance roundrobin
+{% for host in etcd_hosts %}
+    server {{ host.name }} {{ host.ip }}:{{ etcd_port }} check
+{% endfor %}
+
+backend kube-main-backend
+    mode tcp
+    balance roundrobin
+{% for host in master_hosts %}
+    server {{ host.name }} {{ host.ip }}:{{ kube_port }} check
+{% endfor %}

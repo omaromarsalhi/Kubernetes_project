@@ -92,6 +92,22 @@ resource "aws_security_group" "load_balancer" {
     security_groups = [aws_security_group.bastion.id]
   }
 
+  ingress {
+    description = "HAProxy Stats from Bastion"
+    from_port   = 8399
+    to_port     = 8399
+    protocol    = "tcp"
+    security_groups = [aws_security_group.bastion.id]
+  }
+
+  ingress {
+    description = "HAProxy Stats from External"
+    from_port   = 8399
+    to_port     = 8399
+    protocol    = "tcp"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+
   egress {
     from_port   = 0
     to_port     = 0
@@ -102,4 +118,36 @@ resource "aws_security_group" "load_balancer" {
   tags = merge(var.tags, {
     Name = "${local.name_prefix}-load-balancer-sg"
   })
+}
+
+# Allow Load Balancer to access Private instances
+resource "aws_security_group_rule" "lb_to_private_etcd" {
+  type                     = "ingress"
+  from_port                = 2379
+  to_port                  = 2379
+  protocol                 = "tcp"
+  security_group_id        = aws_security_group.private_ec2.id
+  source_security_group_id = aws_security_group.load_balancer.id
+  description              = "ETCD access from Load Balancer"
+}
+
+resource "aws_security_group_rule" "lb_to_private_kube" {
+  type                     = "ingress"
+  from_port                = 6443
+  to_port                  = 6443
+  protocol                 = "tcp"
+  security_group_id        = aws_security_group.private_ec2.id
+  source_security_group_id = aws_security_group.load_balancer.id
+  description              = "Kubernetes API access from Load Balancer"
+}
+
+# Allow ETCD peer communication between ETCD nodes
+resource "aws_security_group_rule" "etcd_peer_communication" {
+  type                     = "ingress"
+  from_port                = 2380
+  to_port                  = 2380
+  protocol                 = "tcp"
+  security_group_id        = aws_security_group.private_ec2.id
+  source_security_group_id = aws_security_group.private_ec2.id
+  description              = "ETCD peer communication between nodes"
 }
