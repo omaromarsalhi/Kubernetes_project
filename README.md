@@ -16,6 +16,8 @@ For a detailed visual representation of the infrastructure, see:
 - **Interactive Diagram**: [infra_with_nfs.html](infra_with_nfs.html)
 - **Static Image**: [kubernetes-infrastructure-nfs.png](kubernetes-infrastructure-nfs.png)
 
+![Kubernetes Infrastructure with NFS](kubernetes-infrastructure-nfs.png)
+
 ## 📊 Current Status
 
 ### ✅ COMPLETED COMPONENTS
