@@ -28,9 +28,7 @@ resource "aws_instance" "master_1a" {
   vpc_security_group_ids = [var.security_group_id]
   key_name               = var.key_pair_name
 
-  user_data = base64encode(templatefile("${path.module}/user_data.sh", {
-    efs_dns_name = var.efs_dns_name
-  }))
+  user_data = base64encode("#!/bin/bash\ndnf update -y")
 
   root_block_device {
     volume_type = "gp2"
@@ -57,9 +55,7 @@ resource "aws_instance" "master_1b" {
   vpc_security_group_ids = [var.security_group_id]
   key_name               = var.key_pair_name
 
-  user_data = base64encode(templatefile("${path.module}/user_data.sh", {
-    efs_dns_name = var.efs_dns_name
-  }))
+  user_data = base64encode("#!/bin/bash\ndnf update -y")
 
   root_block_device {
     volume_type = "gp2"
@@ -76,20 +72,18 @@ resource "aws_instance" "master_1b" {
   })
 }
 
-# Worker Nodes distributed across subnets (2 workers in AZ A, 1 worker in AZ B)
+# Worker Nodes distributed across subnets (1 worker per AZ, total 2 workers)
 resource "aws_instance" "worker" {
-  count = 3  # Total of 3 workers: 2 in AZ A, 1 in AZ B
+  count = 2
 
   ami                    = data.aws_ami.amazon_linux.id
   instance_type          = var.instance_type
-  # Distribute: 2 workers in AZ A subnets, 1 worker in AZ B subnet
-  subnet_id              = count.index == 0 ? var.subnet_ids[0] : (count.index == 1 ? var.subnet_ids[2] : var.subnet_ids[1])
+  # Distribute: 1 worker in each AZ
+  subnet_id              = count.index == 0 ? var.subnet_ids[0] : var.subnet_ids[1]
   vpc_security_group_ids = [var.security_group_id]
   key_name               = var.key_pair_name
 
-  user_data = base64encode(templatefile("${path.module}/user_data.sh", {
-    efs_dns_name = var.efs_dns_name
-  }))
+  user_data = base64encode("#!/bin/bash\ndnf update -y")
 
   root_block_device {
     volume_type = "gp2"
@@ -102,7 +96,7 @@ resource "aws_instance" "worker" {
     Name = "${local.name_prefix}-worker-${count.index + 1}"
     Type = "Worker"
     Role = "Kubernetes-Worker"
-    AZ   = count.index < 2 ? "us-east-1a" : "us-east-1b"
+    AZ   = count.index == 0 ? "us-east-1a" : "us-east-1b"
   })
 }
 
@@ -116,9 +110,7 @@ resource "aws_instance" "etcd_instance_1a" {
   vpc_security_group_ids = [var.security_group_id]
   key_name               = var.key_pair_name
 
-  user_data = base64encode(templatefile("${path.module}/user_data.sh", {
-    efs_dns_name = var.efs_dns_name
-  }))
+  user_data = base64encode("#!/bin/bash\ndnf update -y")
 
   root_block_device {
     volume_type = "gp2"
@@ -144,9 +136,7 @@ resource "aws_instance" "etcd_instance_1b" {
   vpc_security_group_ids = [var.security_group_id]
   key_name               = var.key_pair_name
 
-  user_data = base64encode(templatefile("${path.module}/user_data.sh", {
-    efs_dns_name = var.efs_dns_name
-  }))
+  user_data = base64encode("#!/bin/bash\ndnf update -y")
 
   root_block_device {
     volume_type = "gp2"
@@ -160,6 +150,33 @@ resource "aws_instance" "etcd_instance_1b" {
     Type = "Additional"
     Role = "Additional-Instance"
     AZ   = "us-east-1b"
+  })
+}
+
+# Storage Instance in us-east-1c Private Subnet
+resource "aws_instance" "storage_1c" {
+  count = 1
+
+  ami                    = data.aws_ami.amazon_linux.id
+  instance_type          = var.instance_type
+  subnet_id              = var.subnet_ids[4]  # Private subnet in 1c
+  vpc_security_group_ids = [var.security_group_id]
+  key_name               = var.key_pair_name
+
+  user_data = base64encode("#!/bin/bash\ndnf update -y")
+
+  root_block_device {
+    volume_type = "gp2"
+    volume_size = var.volume_size
+    encrypted   = false
+    delete_on_termination = true
+  }
+
+  tags = merge(var.tags, {
+    Name = "${local.name_prefix}-storage-1c"
+    Type = "Storage"
+    Role = "Storage-Server"
+    AZ   = "us-east-1c"
   })
 }
 

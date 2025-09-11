@@ -1,16 +1,16 @@
 output "instance_ids" {
   description = "IDs of all EC2 instances"
-  value       = concat([aws_instance.master_1a[0].id], [aws_instance.master_1b[0].id], aws_instance.worker[*].id, aws_instance.etcd_instance_1a[*].id, aws_instance.etcd_instance_1b[*].id, aws_instance.load_balancer[*].id)
+  value       = concat([aws_instance.master_1a[0].id], [aws_instance.master_1b[0].id], aws_instance.worker[*].id, aws_instance.etcd_instance_1a[*].id, aws_instance.etcd_instance_1b[*].id, aws_instance.storage_1c[*].id, aws_instance.load_balancer[*].id)
 }
 
 output "private_ips" {
   description = "Private IPs of all EC2 instances"
-  value       = concat([aws_instance.master_1a[0].private_ip], [aws_instance.master_1b[0].private_ip], aws_instance.worker[*].private_ip, aws_instance.etcd_instance_1a[*].private_ip, aws_instance.etcd_instance_1b[*].private_ip, aws_instance.load_balancer[*].private_ip)
+  value       = concat([aws_instance.master_1a[0].private_ip], [aws_instance.master_1b[0].private_ip], aws_instance.worker[*].private_ip, aws_instance.etcd_instance_1a[*].private_ip, aws_instance.etcd_instance_1b[*].private_ip, aws_instance.storage_1c[*].private_ip, aws_instance.load_balancer[*].private_ip)
 }
 
 output "instance_count" {
   description = "Total number of instances created"
-  value       = 2 + length(aws_instance.worker) + length(aws_instance.etcd_instance_1a) + length(aws_instance.etcd_instance_1b) + length(aws_instance.load_balancer)
+  value       = 2 + length(aws_instance.worker) + length(aws_instance.etcd_instance_1a) + length(aws_instance.etcd_instance_1b) + length(aws_instance.storage_1c) + length(aws_instance.load_balancer)
 }
 
 # Master node outputs
@@ -89,7 +89,18 @@ output "worker_count" {
 
 output "total_instance_count" {
   description = "Total number of instances"
-  value       = 2 + length(aws_instance.worker) + length(aws_instance.etcd_instance_1a) + length(aws_instance.etcd_instance_1b) + length(aws_instance.load_balancer)
+  value       = 2 + length(aws_instance.worker) + length(aws_instance.etcd_instance_1a) + length(aws_instance.etcd_instance_1b) + length(aws_instance.storage_1c) + length(aws_instance.load_balancer)
+}
+
+# Storage instance outputs
+output "storage_1c_id" {
+  description = "ID of storage instance in AZ 1c"
+  value       = aws_instance.storage_1c[0].id
+}
+
+output "storage_1c_private_ip" {
+  description = "Private IP of storage instance in AZ 1c"
+  value       = aws_instance.storage_1c[0].private_ip
 }
 
 # Load Balancer outputs

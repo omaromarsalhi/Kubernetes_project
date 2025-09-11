@@ -14,7 +14,7 @@
         }
         body {
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            background: linear-gradient(135deg, #f5f7fa 0%, #e4efe9 100%);
+            /* background: linear-gradient(135deg, #f5f7fa 0%, #e4efe9 100%); */
             margin: 0;
             padding: 20px;
             min-height: 100vh;
@@ -55,24 +55,44 @@
             background: white;
             border-radius: 12px;
             box-shadow: 0 8px 30px rgba(0, 0, 0, 0.12);
-            padding: 25px;
+            padding: 20px;
             margin-top: 20px;
         }
         .flowchart-container {
             overflow: auto;
-            padding: 15px;
+            padding: 20px;
             border: 1px solid #e0e0e0;
             border-radius: 8px;
-            background: #fff;
+            background: #ffffff;
             margin-bottom: 20px;
+            min-height: 500px;
+        }
+        
+        .flowchart-container .mermaid {
+            background: #ffffff;
+            padding: 15px;
+        }
+        
+        .flowchart-container svg {
+            background: #ffffff;
+            margin: 5px 0;
+        }
+        
+        .flowchart-container .mermaid .node {
+            margin: 4px 0;
+        }
+        
+        .flowchart-container .mermaid .cluster {
+            padding: 8px;
+            margin: 5px 0;
         }
         .legend {
             display: flex;
             flex-wrap: wrap;
-            gap: 15px;
+            gap: 12px;
             justify-content: center;
-            margin: 30px 0;
-            padding: 20px;
+            margin: 20px 0;
+            padding: 15px;
             background: #f8f9fa;
             border-radius: 8px;
         }
@@ -89,7 +109,7 @@
             border: 2px solid;
         }
         .footer {
-            margin-top: 30px;
+            margin-top: 20px;
             text-align: center;
             color: #7f8c8d;
             font-size: 0.9rem;
@@ -105,7 +125,7 @@
             transition: all 0.3s ease;
             display: flex;
             align-items: center;
-            margin: 20px auto;
+            margin: 15px auto;
             box-shadow: 0 4px 6px rgba(67, 97, 238, 0.3);
         }
         .export-btn:hover {
@@ -121,9 +141,9 @@
         }
         .instructions {
             background: #e8f4fc;
-            padding: 15px;
+            padding: 12px;
             border-radius: 8px;
-            margin: 20px 0;
+            margin: 15px 0;
             color: #2c3e50;
         }
         .instructions h3 {
@@ -132,9 +152,9 @@
         }
         .architecture-note {
             background: #fff4e6;
-            padding: 15px;
+            padding: 12px;
             border-radius: 8px;
-            margin: 20px 0;
+            margin: 15px 0;
             border-left: 4px solid #ffa94d;
         }
         .architecture-note h3 {
@@ -150,10 +170,10 @@
 </head>
 <body>
     <div class="header">
-        <h1>AWS EFS Storage Architecture</h1>
-        <p class="subtitle">Multi-AZ Kubernetes Cluster with Shared EFS Storage</p>
+        <h1>Kubernetes Cluster Infrastructure</h1>
+        <p class="subtitle">Multi-AZ Kubernetes Cluster with NFS Storage</p>
         <p class="description">
-            This optimized diagram shows how Amazon EFS provides shared storage for a Kubernetes cluster spanning multiple Availability Zones.
+            This diagram shows the complete AWS infrastructure for a highly available Kubernetes cluster with NFS-based shared storage across multiple Availability Zones.
         </p>
     </div>
     
@@ -167,7 +187,8 @@
                 </svg>
                 Architecture Notes
             </h3>
-            <p>Amazon EFS provides a shared file system that can be accessed concurrently from all nodes in the Kubernetes cluster, regardless of which Availability Zone they're in. This solves the cross-AZ storage access problem.</p>
+            <p>The NFS storage server provides shared file system access for all nodes in the Kubernetes cluster across multiple Availability Zones. This setup includes redundant master nodes, distributed etcd cluster, and a load balancer for high availability.</p>
+            <p><strong>Note:</strong> Some connections (like SSH to all instances and cross-AZ etcd communication) are simplified in the diagram for clarity and readability.</p>
         </div>
         
         <button class="export-btn" id="exportBtn">
@@ -188,105 +209,124 @@ flowchart TB
         subgraph VPC["VPC: 10.0.0.0/16"]
             IGW
             
-            %% EFS File System (Shared across all AZs)
-            EFS[("Amazon EFS<br>Shared File System")]
-            
-            subgraph AZ_A["Availability Zone A"]
-                subgraph Public_A["Public Subnet"]
-                    Bastion["Bastion Host<br>10.0.2.10"]
-                    NAT_A["NAT Gateway A"]
+            subgraph AZ_1A["Availability Zone 1a"]
+                subgraph Public_1A["Public Subnet<br>10.0.1.0/24"]
+                    Bastion["Bastion Host"]
+                    NAT_1A["NAT Gateway 1a"]
                 end
                 
-                subgraph Private_A["Private Subnet"]
-                    Master1["Master Node 1<br>10.0.1.10"]
-                    Worker1["Worker Node 1<br>10.0.1.11"]
-                    Worker2["Worker Node 2<br>10.0.1.12"]
+                subgraph Private_1A["Private Subnet<br>10.0.2.0/24"]
+                    Master_1A["Master Node 1a"]
+                    Worker_1A["Worker Node 1a"]
                 end
 
-                subgraph Etcd_A["Etcd Subnet AZ-A"]
-                    Etcd1["Etcd Node A<br>10.0.4.10"]
+                subgraph Etcd_1A["Additional Private<br>10.0.5.0/24"]
+                    EtcdNode_1A["Etcd Node 1a"]
                 end
             end
             
-            subgraph AZ_B["Availability Zone B"]
-                subgraph Public_B["Public Subnet"]
-                    ALB["Application Load Balancer"]
-                    NAT_B["NAT Gateway B"]
+            subgraph AZ_1B["Availability Zone 1b"]
+                subgraph Public_1B["Public Subnet<br>10.0.3.0/24"]
+                    LoadBalancer["Load Balancer<br>EC2 + Nginx"]
+                    NAT_1B["NAT Gateway 1b"]
                 end
                 
-                subgraph Private_B["Private Subnet"]
-                    Master2["Master Node 2<br>10.0.3.10"]
-                    Worker3["Worker Node 3<br>10.0.3.11"]
-                    Worker4["Worker Node 4<br>10.0.3.12"]
+                subgraph Private_1B["Private Subnet<br>10.0.4.0/24"]
+                    Master_1B["Master Node 1b"]
+                    Worker_1B["Worker Node 1b"]
                 end
 
-                subgraph Etcd_B["Etcd Subnet AZ-B"]
-                    Etcd2["Etcd Node B<br>10.0.5.10"]
+                subgraph Etcd_1B["Additional Private<br>10.0.6.0/24"]
+                    EtcdNode_1B["Etcd Node 1b"]
+                end
+            end
+            
+            subgraph AZ_1C["Availability Zone 1c"]
+                subgraph Public_1C["Public Subnet<br>10.0.8.0/24"]
+                    NAT_1C["NAT Gateway 1c"]
+                end
+                
+                subgraph Private_1C["Private Subnet<br>10.0.7.0/24"]
+                    Storage_1C["NFS Storage Server"]
                 end
             end
         end
     end
 
     %% Internet Connectivity
-    IGW --> ALB
+    IGW --> LoadBalancer
     IGW --> Bastion
     
-    %% Bastion Host Management Access
-    Bastion -.->|SSH| Master1
-    Bastion -.->|SSH| Master2
-    Bastion -.->|SSH| Etcd1
-    Bastion -.->|SSH| Etcd2
+    %% Bastion Host Management Access (simplified - to subnets)
+    Bastion -.->|SSH| Private_1A
+    Bastion -.->|SSH| Private_1B
+    Bastion -.->|SSH| Private_1C
     
     %% Master Node Communication with Etcd
-    Master1 <-->|etcd| Etcd1
-    Master2 <-->|etcd| Etcd2
-
-    %% Load Balancer to Workers - rearranged to avoid overlaps
-    ALB -->|traffic| Worker2
-    ALB -->|traffic| Worker1
-    ALB -->|traffic| Worker3
-    ALB -->|traffic| Worker4
+    Master_1A -->|etcd| Etcd_1A
+    Master_1B -->|etcd| Etcd_1B
+    Etcd_1A -->|etcd| Master_1A
+    Etcd_1B -->|etcd| Master_1B
     
-    %% EFS Storage Connections - Linked to subnets instead of individual nodes
-    EFS -.->|NFS| Private_A
-    EFS -.->|NFS| Private_B
+    %% Load Balancer to Workers
+    LoadBalancer -->|traffic| Worker_1A
+    LoadBalancer -->|traffic| Worker_1B
+    
+    %% NFS Storage Connections (key connections only)
+    Storage_1C -.->|NFS| Private_1A
+    Storage_1C -.->|NFS| Private_1B
     
     %% NAT Gateway Connectivity
-    NAT_A -.-> Private_A
-    NAT_B -.-> Private_B
+    NAT_1A -.-> Private_1A
+    NAT_1B -.-> Private_1B
+    NAT_1C -.-> Private_1C
 
     %% Styling
     classDef master fill:#FECACA,stroke:#dc2626,stroke-width:2px,color:#000
     classDef worker fill:#BFDBFE,stroke:#2563eb,stroke-width:2px,color:#000
     classDef nat fill:#FDE68A,stroke:#f59e0b,stroke-width:2px,color:#000
-    classDef alb fill:#FDBA74,stroke:#ea580c,stroke-width:2px,color:#000
+    classDef lb fill:#FDBA74,stroke:#ea580c,stroke-width:2px,color:#000
     classDef storage fill:#A78BFA,stroke:#6D28D9,stroke-width:2px,color:#000
     classDef access fill:#BBF7D0,stroke:#16a34a,stroke-width:2px,color:#000
     classDef igw fill:#99F6E4,stroke:#059669,stroke-width:2px,color:#000
-    classDef etcd fill:#FDE8FF,stroke:#9b5cf6,stroke-width:2px,color:#000
-    classDef efs fill:#A78BFA,stroke:#6D28D9,stroke-width:2px,color:#000
+    classDef etcd fill:#F1F5F9,stroke:#64748B,stroke-width:2px,color:#000
     classDef subnet fill:#E0E7FF,stroke:#4F46E5,stroke-width:1px,color:#000
+    classDef publicsubnet fill:#D1FAE5,stroke:#059669,stroke-width:1px,color:#000
+    classDef etcdsubnet fill:#F3E8FF,stroke:#7C3AED,stroke-width:1px,color:#000
+    classDef region fill:#ffffff,stroke:#cccccc,stroke-width:1px,color:#000
+    classDef vpc fill:#ffffff,stroke:#cccccc,stroke-width:1px,color:#000
+    classDef availability_zone fill:#ffffff,stroke:#cccccc,stroke-width:1px,color:#000
 
     Bastion:::access
-    NAT_A:::nat
-    NAT_B:::nat
-    Master1:::master
-    Master2:::master
-    Worker1:::worker
-    Worker2:::worker
-    Worker3:::worker
-    Worker4:::worker
-    ALB:::alb
+    NAT_1A:::nat
+    NAT_1B:::nat
+    NAT_1C:::nat
+    Master_1A:::master
+    Master_1B:::master
+    Worker_1A:::worker
+    Worker_1B:::worker
+    LoadBalancer:::lb
     IGW:::igw
-    Etcd1:::etcd
-    Etcd2:::etcd
-    EFS:::efs
-    Private_A:::subnet
-    Private_B:::subnet
+    EtcdNode_1A:::etcd
+    EtcdNode_1B:::etcd
+    Storage_1C:::storage
+    Private_1A:::subnet
+    Private_1B:::subnet
+    Private_1C:::subnet
+    Public_1A:::publicsubnet
+    Public_1B:::publicsubnet
+    Public_1C:::publicsubnet
+    Etcd_1A:::etcdsubnet
+    Etcd_1B:::etcdsubnet
+    AWS_Region:::region
+    VPC:::vpc
+    AZ_1A:::availability_zone
+    AZ_1B:::availability_zone
+    AZ_1C:::availability_zone
 
     %% Link styles for better visibility
-    linkStyle 0,1,2,3,4,5,6,7,8,9,10,11,12,13 stroke-width:2px
-    linkStyle 14,15 stroke-width:2px,stroke-dasharray:5 5
+    linkStyle 0,1,6,7,8,9,10,11 stroke-width:2px
+    linkStyle 2,3,4,5,12,13,14,15,16 stroke-width:2px,stroke-dasharray:5 5
             </div>
         </div>
         
@@ -309,7 +349,7 @@ flowchart TB
             </div>
             <div class="legend-item">
                 <div class="legend-color" style="background-color: #A78BFA; border-color: #6D28D9"></div>
-                <span>EFS Storage</span>
+                <span>NFS Storage</span>
             </div>
             <div class="legend-item">
                 <div class="legend-color" style="background-color: #BBF7D0; border-color: #16a34a"></div>
@@ -320,31 +360,39 @@ flowchart TB
                 <span>Internet Gateway</span>
             </div>
             <div class="legend-item">
-                <div class="legend-color" style="background-color: #FDE8FF; border-color: #9b5cf6"></div>
+                <div class="legend-color" style="background-color: #F1F5F9; border-color: #64748B"></div>
                 <span>Etcd Nodes</span>
             </div>
             <div class="legend-item">
                 <div class="legend-color" style="background-color: #E0E7FF; border-color: #4F46E5"></div>
                 <span>Private Subnets</span>
             </div>
+            <div class="legend-item">
+                <div class="legend-color" style="background-color: #D1FAE5; border-color: #059669"></div>
+                <span>Public Subnets</span>
+            </div>
+            <div class="legend-item">
+                <div class="legend-color" style="background-color: #F3E8FF; border-color: #7C3AED"></div>
+                <span>Etcd Subnets</span>
+            </div>
         </div>
         
         <div class="instructions">
-            <h3>How EFS Solves the Cross-AZ Storage Problem</h3>
-            <p>Amazon EFS provides a fully managed, shared file system that can be mounted concurrently by multiple EC2 instances across different Availability Zones. This allows all nodes in your Kubernetes cluster to access the same storage regardless of which AZ they're running in.</p>
+            <h3>How NFS Storage Enables Cross-AZ Access</h3>
+            <p>The NFS storage server provides a centralized file system that can be mounted by all nodes in the Kubernetes cluster across different Availability Zones. This setup ensures consistent storage access for persistent volumes and shared data.</p>
             <p>Key benefits:</p>
             <ul>
-                <li>Shared access across all AZs in a region</li>
-                <li>Elastic capacity that grows and shrinks automatically</li>
-                <li>High availability and durability</li>
-                <li>Compatible with Kubernetes through the EFS CSI driver</li>
-                <li>Pay only for the storage you use</li>
+                <li>Centralized storage server in AZ 1c</li>
+                <li>Network file system access across all AZs</li>
+                <li>High availability through redundant infrastructure</li>
+                <li>Suitable for Kubernetes persistent volumes</li>
+                <li>Cost-effective compared to managed services</li>
             </ul>
         </div>
     </div>
     
     <div class="footer">
-        <p>AWS EFS Storage Architecture Diagram | Created with Mermaid.js</p>
+        <p>Kubernetes Cluster Infrastructure with NFS Storage | Created with Mermaid.js</p>
     </div>
 
     <script>
@@ -353,7 +401,27 @@ flowchart TB
             startOnLoad: true, 
             theme: 'default',
             securityLevel: 'loose',
-            fontFamily: 'Segoe UI'
+            fontFamily: 'Segoe UI',
+            flowchart: {
+                nodeSpacing: 40,
+                rankSpacing: 60,
+                curve: 'basis',
+                padding: 15,
+                htmlLabels: true,
+                useMaxWidth: true
+            },
+            themeVariables: {
+                fontSize: '12px',
+                fontFamily: 'Segoe UI',
+                primaryColor: '#ffffff',
+                primaryTextColor: '#2c3e50',
+                primaryBorderColor: '#e0e0e0',
+                lineColor: '#6b7280',
+                sectionBkgColor: '#ffffff',
+                altSectionBkgColor: '#f8f9fa',
+                gridColor: '#e0e0e0',
+                tertiaryColor: '#f8f9fa'
+            }
         });
         
         // Export functionality
@@ -376,7 +444,7 @@ flowchart TB
                     const image = canvas.toDataURL('image/png');
                     const link = document.createElement('a');
                     link.href = image;
-                    link.download = 'aws-efs-architecture.png';
+                    link.download = 'kubernetes-infrastructure-nfs.png';
                     document.body.appendChild(link);
                     link.click();
                     document.body.removeChild(link);

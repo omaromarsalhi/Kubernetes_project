@@ -57,16 +57,4 @@ module "ec2_cluster" {
   key_pair_name        = var.key_pair_name
   load_balancer_subnet_id = module.vpc.public_subnet_1b_id
   load_balancer_security_group_id = module.security_groups.load_balancer_security_group_id
-  efs_dns_name         = module.efs.efs_dns_name
-}
-
-# EFS Module
-module "efs" {
-  source = "./modules/efs"
-
-  project_name       = "kubernetes"
-  environment        = "dev"
-  vpc_id             = module.vpc.vpc_id
-  vpc_cidr_block     = module.vpc.vpc_cidr_block
-  private_subnet_ids = module.vpc.private_subnet_ids
 }

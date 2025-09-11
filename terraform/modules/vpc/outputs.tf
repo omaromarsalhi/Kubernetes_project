@@ -23,9 +23,14 @@ output "public_subnet_1b_id" {
   value       = aws_subnet.public_1b.id
 }
 
+output "public_subnet_1c_id" {
+  description = "ID of the public subnet in us-east-1c"
+  value       = aws_subnet.public_1c.id
+}
+
 output "public_subnet_ids" {
   description = "List of public subnet IDs"
-  value       = [aws_subnet.public_1a.id, aws_subnet.public_1b.id]
+  value       = [aws_subnet.public_1a.id, aws_subnet.public_1b.id, aws_subnet.public_1c.id]
 }
 
 output "private_subnet_1a_id" {
@@ -40,7 +45,7 @@ output "private_subnet_1b_id" {
 
 output "private_subnet_ids" {
   description = "List of private subnet IDs"
-  value       = [aws_subnet.private_1a.id, aws_subnet.private_1b.id, aws_subnet.private_1a_additional.id, aws_subnet.private_1b_additional.id]
+  value       = [aws_subnet.private_1a.id, aws_subnet.private_1b.id, aws_subnet.private_1a_additional.id, aws_subnet.private_1b_additional.id, aws_subnet.private_1c.id]
 }
 
 output "private_subnet_1a_additional_id" {
@@ -53,6 +58,11 @@ output "private_subnet_1b_additional_id" {
   value       = aws_subnet.private_1b_additional.id
 }
 
+output "private_subnet_1c_id" {
+  description = "ID of the private subnet in us-east-1c"
+  value       = aws_subnet.private_1c.id
+}
+
 output "nat_gateway_1a_id" {
   description = "ID of the NAT Gateway in us-east-1a"
   value       = aws_nat_gateway.nat_1a.id
@@ -63,9 +73,14 @@ output "nat_gateway_1b_id" {
   value       = aws_nat_gateway.nat_1b.id
 }
 
+output "nat_gateway_1c_id" {
+  description = "ID of the NAT Gateway in us-east-1c"
+  value       = aws_nat_gateway.nat_1c.id
+}
+
 output "nat_gateway_ids" {
   description = "List of NAT Gateway IDs"
-  value       = [aws_nat_gateway.nat_1a.id, aws_nat_gateway.nat_1b.id]
+  value       = [aws_nat_gateway.nat_1a.id, aws_nat_gateway.nat_1b.id, aws_nat_gateway.nat_1c.id]
 }
 
 output "eip_nat_1a" {
@@ -76,6 +91,11 @@ output "eip_nat_1a" {
 output "eip_nat_1b" {
   description = "Elastic IP for NAT Gateway 1b"
   value       = aws_eip.nat_1b.public_ip
+}
+
+output "eip_nat_1c" {
+  description = "Elastic IP for NAT Gateway 1c"
+  value       = aws_eip.nat_1c.public_ip
 }
 
 output "public_route_table_id" {

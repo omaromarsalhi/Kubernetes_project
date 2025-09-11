@@ -53,11 +53,6 @@ variable "load_balancer_security_group_id" {
   type        = string
 }
 
-variable "efs_dns_name" {
-  description = "DNS name of the EFS file system"
-  type        = string
-}
-
 variable "volume_size" {
   description = "Size of the root EBS volume in GB"
   type        = number
