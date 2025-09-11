@@ -11,6 +11,11 @@ Internet → Load Balancer (HAProxy) → [ETCD Cluster | K8s Masters | Workers]
                                Shared Storage (iSCSI + OCFS2)
 ```
 
+### 📋 Infrastructure Diagram
+For a detailed visual representation of the infrastructure, see:
+- **Interactive Diagram**: [infra_with_nfs.html](infra_with_nfs.html)
+- **Static Image**: [kubernetes-infrastructure-nfs.png](kubernetes-infrastructure-nfs.png)
+
 ## 📊 Current Status
 
 ### ✅ COMPLETED COMPONENTS
