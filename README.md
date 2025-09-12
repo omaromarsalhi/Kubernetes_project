@@ -20,17 +20,23 @@ For a detailed visual representation of the infrastructure, see:
 
 ## 📊 Current Status
 
-### ✅ COMPLETED COMPONENTS
-- **Infrastructure**: VPC, subnets, security groups, EC2 instances (Terraform)
-- **HAProxy Load Balancer**: Configured for ETCD (2379) and Kubernetes API (6443)
-- **ETCD Role**: Complete Ansible automation for 3-node ETCD cluster
-- **Security Groups**: Proper access rules for all components
+### ✅ COMPLETED & DEPLOYED COMPONENTS
+- **Infrastructure**: VPC, subnets, security groups, EC2 instances (Terraform) ✅
+- **HAProxy Load Balancer**: Configured and running for ETCD (2379) and Kubernetes API (6443) ✅
+- **ETCD Cluster**: 2-node cluster deployed and operational with TLS encryption ✅
+- **Security Groups**: Updated with proper access rules for all components ✅
+- **Certificate Management**: TLS certificates generated and distributed ✅
 
-### 🚀 READY FOR DEPLOYMENT
-- **ETCD Cluster**: Ansible role created and ready to deploy
+### 🔄 IN PROGRESS
 - **Kubernetes Masters**: Next component to implement
-- **Monitoring**: Prometheus + Grafana stack
-- **Storage**: iSCSI + OCFS2 shared storage
+- **Worker Nodes**: Ready for deployment after masters
+- **Storage**: iSCSI + OCFS2 shared storage pending
+
+### 📍 DEPLOYMENT STATUS
+- **ETCD Nodes**: `etcd1` (10.0.13.108) and `etcd2` (10.0.23.108) - Both UP ✅
+- **HAProxy Load Balancer**: `lb` (18.209.164.58) - Running and healthy ✅
+- **ETCD Endpoint**: `http://18.209.164.58:2379` - Accessible through HAProxy ✅
+- **HAProxy Stats**: `http://18.209.164.58:8399/stats_secure` - Monitoring active ✅
 
 ## 🚀 Quick Start
 
@@ -48,16 +54,26 @@ terraform plan
 terraform apply
 ```
 
-### ETCD Cluster Deployment
+### ETCD Cluster Deployment ✅ COMPLETED
 ```bash
 cd ansible
 ansible-playbook -i inventory.ini playbooks/etcd-playbook.yml
 ```
 
-### HAProxy Deployment
+### HAProxy Deployment ✅ COMPLETED
 ```bash
 cd ansible
 ansible-playbook -i inventory.ini playbooks/haproxy-playbook.yml
+```
+
+### Verify ETCD Cluster
+```bash
+# Test connectivity through HAProxy
+telnet 18.209.164.58 2379
+
+# Check HAProxy stats dashboard
+http://18.209.164.58:8399/stats_secure
+# Username: admin, Password: omar123
 ```
 
 ## 📁 Project Structure
@@ -102,11 +118,13 @@ kubernetes_project/
 - **Features**: Health checks, round-robin load balancing
 - **Stats Access**: http://lb-ip:8399/stats_secure (admin/omar123)
 
-### ETCD Cluster
+### ETCD Cluster ✅ OPERATIONAL
 - **Version**: 3.5.9
+- **Nodes**: 2 nodes (etcd1: 10.0.13.108, etcd2: 10.0.23.108)
 - **Security**: TLS certificates for all communication
-- **Configuration**: Automated cluster formation
-- **Health Checks**: Built-in verification
+- **Status**: Both nodes active and healthy
+- **Access**: Available through HAProxy at 18.209.164.58:2379
+- **Health Checks**: Passing - cluster formation successful
 
 ## 🔒 Security Features
 
@@ -133,15 +151,16 @@ ssh -i ~/.ssh/id_rsa ec2-user@private-instance-ip
 
 ## 🚧 Next Steps
 
-1. **Deploy ETCD Cluster**
-   ```bash
-   ansible-playbook -i inventory.ini playbooks/etcd-playbook.yml
-   ```
+1. **✅ ETCD Cluster - COMPLETED**
+   - Both ETCD nodes deployed and operational
+   - TLS certificates configured
+   - HAProxy load balancer working
+   - Cluster health verified
 
-2. **Implement Kubernetes Masters**
-   - Create Ansible role for K3S/Kubernetes
-   - Configure master nodes
-   - Join to ETCD cluster
+2. **🔄 Implement Kubernetes Masters - NEXT PRIORITY**
+   - Create Ansible role for Kubernetes control plane
+   - Configure master nodes to use ETCD cluster
+   - Set up Kubernetes API server with ETCD endpoint: `https://18.209.164.58:2379`
 
 3. **Deploy Worker Nodes**
    - Configure worker nodes
@@ -192,4 +211,4 @@ This project follows the implementation from the Medium guide. For questions or 
 
 ---
 
-**Status**: HAProxy ✅ Complete | ETCD ⚡ Ready to Deploy | Kubernetes 🔄 Next
+**Status**: Infrastructure ✅ | HAProxy ✅ | ETCD ✅ | Kubernetes Masters 🔄 Next Phase

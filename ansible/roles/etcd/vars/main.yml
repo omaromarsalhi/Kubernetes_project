@@ -5,12 +5,12 @@ etcd_download_url: "https://github.com/etcd-io/etcd/releases/download/v{{ etcd_v
 # ETCD cluster configuration
 etcd_cluster_name: "kubernetes-etcd"
 etcd_data_dir: "/var/lib/etcd"
-etcd_wal_dir: "/var/lib/etcd/wal"
+etcd_wal_dir: "/var/lib/etcd"
 
 # Network configuration
-etcd_listen_client_urls: "https://{{ ansible_host }}:2379"
+etcd_listen_client_urls: "https://0.0.0.0:2379"
 etcd_advertise_client_urls: "https://{{ ansible_host }}:2379"
-etcd_listen_peer_urls: "https://{{ ansible_host }}:2380"
+etcd_listen_peer_urls: "https://0.0.0.0:2380"
 etcd_initial_advertise_peer_urls: "https://{{ ansible_host }}:2380"
 
 # Cluster members (will be populated by playbook)
@@ -24,11 +24,13 @@ etcd_trusted_ca_file: "/etc/ssl/etcd/ca.crt"
 etcd_peer_cert_file: "/etc/ssl/etcd/peer.crt"
 etcd_peer_key_file: "/etc/ssl/etcd/peer.key"
 etcd_peer_trusted_ca_file: "/etc/ssl/etcd/ca.crt"
+etcd_client_cert_auth: true
+etcd_peer_client_cert_auth: true
 
 # Auto TLS (disabled for production)
 etcd_auto_tls: false
 etcd_peer_auto_tls: false
 
 # Logging
-etcd_log_level: "info"
-etcd_log_outputs: "default"
+etcd_log_level: "debug"
+etcd_log_outputs: "systemd/journal"

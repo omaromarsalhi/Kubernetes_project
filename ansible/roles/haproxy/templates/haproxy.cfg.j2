@@ -22,14 +22,14 @@ frontend stats
     stats auth {{ haproxy_stats_user }}:{{ haproxy_stats_pass }}
 
 frontend etcd-main
-    bind {{ ansible_host }}:{{ etcd_port }}
+    bind *:{{ etcd_port }}
     retries 3
     mode tcp
     option tcplog
     default_backend etcd-main-backend
 
 frontend kube-main
-    bind {{ ansible_host }}:{{ kube_port }}
+    bind *:{{ kube_port }}
     retries 3
     mode tcp
     option tcplog

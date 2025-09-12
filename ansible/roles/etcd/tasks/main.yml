@@ -12,6 +12,11 @@
       - openssl
     state: present
 
+- name: Create peer certificate extensions file
+  copy:
+    content: "subjectAltName = DNS:{{ inventory_hostname }},IP:{{ ansible_host }}"
+    dest: /etc/ssl/etcd/peer.ext
+
 - name: Create etcd user
   user:
     name: etcd
@@ -29,23 +34,58 @@
   loop:
     - /etc/etcd
     - /var/lib/etcd
+    - /var/lib/etcd/wal
     - /etc/ssl/etcd
+
+- name: Clean existing etcd data if present (for fresh cluster setup)
+  file:
+    path: "{{ item }}"
+    state: absent
+  loop:
+    - /var/lib/etcd/member
+    - /var/lib/etcd/wal
+    - /var/lib/etcd/default.etcd
+  when: etcd_initial_cluster_state == "new"
+
+- name: Ensure clean data directory
+  file:
+    path: /var/lib/etcd
+    state: absent
+  when: etcd_initial_cluster_state == "new"
+
+- name: Recreate data directory
+  file:
+    path: /var/lib/etcd
+    state: directory
+    owner: etcd
+    group: etcd
+    mode: '0700'
+  when: etcd_initial_cluster_state == "new"
+
+- name: Recreate WAL directory after cleanup
+  file:
+    path: /var/lib/etcd/wal
+    state: directory
+    owner: etcd
+    group: etcd
+    mode: '0700'
+  when: etcd_initial_cluster_state == "new"
 
 - name: Download etcd binary
   get_url:
     url: "{{ etcd_download_url }}"
-    dest: /tmp/etcd-{{ etcd_version }}-linux-amd64.tar.gz
+    dest: /tmp/etcd-v{{ etcd_version }}-linux-amd64.tar.gz
     mode: '0644'
 
 - name: Extract etcd binary
   unarchive:
-    src: /tmp/etcd-{{ etcd_version }}-linux-amd64.tar.gz
+    src: /tmp/etcd-v{{ etcd_version }}-linux-amd64.tar.gz
     dest: /tmp/
     remote_src: yes
 
 - name: Install etcd binaries
   copy:
-    src: "/tmp/etcd-{{ etcd_version }}-linux-amd64/{{ item }}"
+    src: "/tmp/etcd-v{{ etcd_version }}-linux-amd64/{{ item }}"
     dest: "/usr/local/bin/{{ item }}"
     mode: '0755'
     remote_src: yes
@@ -56,20 +96,63 @@
 - name: Generate CA certificate
   command: >
     openssl req -new -x509 -days 3650 -nodes
-    -keyout /etc/ssl/etcd/ca.key
-    -out /etc/ssl/etcd/ca.crt
+    -keyout /home/ec2-user/etcd-ca.key
+    -out /home/ec2-user/etcd-ca.crt
     -subj "/CN=etcd-ca"
+  delegate_to: localhost
+  run_once: true
   args:
-    creates: /etc/ssl/etcd/ca.crt
+    creates: /home/ec2-user/etcd-ca.crt
+
+- name: Set CA key permissions
+  file:
+    path: /home/ec2-user/etcd-ca.key
+    mode: '0644'
+  delegate_to: localhost
+  run_once: true
+
+- name: Copy CA certificate to etcd nodes
+  copy:
+    src: /home/ec2-user/etcd-ca.crt
+    dest: /etc/ssl/etcd/ca.crt
+    mode: '0644'
+
+- name: Copy CA key to etcd nodes
+  copy:
+    src: /home/ec2-user/etcd-ca.key
+    dest: /etc/ssl/etcd/ca.key
+    mode: '0600'
+
+- name: Secure CA key on localhost after copying
+  file:
+    path: /home/ec2-user/etcd-ca.key
+    mode: '0600'
+  delegate_to: localhost
+  run_once: true
+
+- name: Remove old server certificates to force regeneration
+  file:
+    path: "{{ item }}"
+    state: absent
+  loop:
+    - /etc/ssl/etcd/server.key
+    - /etc/ssl/etcd/server.csr
+    - /etc/ssl/etcd/server.crt
+    - /etc/ssl/etcd/peer.key
+    - /etc/ssl/etcd/peer.csr
+    - /etc/ssl/etcd/peer.crt
 
 - name: Generate server certificate
   command: >
     openssl req -new -nodes
     -keyout /etc/ssl/etcd/server.key
     -out /etc/ssl/etcd/server.csr
-    -subj "/CN={{ ansible_hostname }}"
-  args:
-    creates: /etc/ssl/etcd/server.key
+    -subj "/CN={{ inventory_hostname }}"
+
+- name: Create server certificate extensions file
+  copy:
+    content: "subjectAltName = DNS:{{ inventory_hostname }},DNS:localhost,IP:{{ ansible_host }},IP:127.0.0.1"
+    dest: /etc/ssl/etcd/server.ext
 
 - name: Sign server certificate
   command: >
@@ -79,17 +162,19 @@
     -CAkey /etc/ssl/etcd/ca.key
     -CAcreateserial
     -out /etc/ssl/etcd/server.crt
-  args:
-    creates: /etc/ssl/etcd/server.crt
+    -extfile /etc/ssl/etcd/server.ext
 
 - name: Generate peer certificate
   command: >
     openssl req -new -nodes
     -keyout /etc/ssl/etcd/peer.key
     -out /etc/ssl/etcd/peer.csr
-    -subj "/CN={{ ansible_hostname }}"
-  args:
-    creates: /etc/ssl/etcd/peer.key
+    -subj "/CN={{ inventory_hostname }}"
+
+- name: Create peer certificate extensions file
+  copy:
+    content: "subjectAltName = DNS:{{ inventory_hostname }},DNS:localhost,IP:{{ ansible_host }},IP:127.0.0.1"
+    dest: /etc/ssl/etcd/peer.ext
 
 - name: Sign peer certificate
   command: >
@@ -99,8 +184,7 @@
     -CAkey /etc/ssl/etcd/ca.key
     -CAcreateserial
     -out /etc/ssl/etcd/peer.crt
-  args:
-    creates: /etc/ssl/etcd/peer.crt
+    -extfile /etc/ssl/etcd/peer.ext
 
 - name: Set certificate permissions
   file:
@@ -124,6 +208,74 @@
     - /etc/ssl/etcd/server.crt
     - /etc/ssl/etcd/peer.crt
 
+- name: Create etcd debugging script
+  copy:
+    content: |
+      #!/bin/bash
+      echo "=== ETCD Debugging Script ==="
+      echo "Current date: $(date)"
+      echo ""
+      
+      echo "=== ETCD Service Status ==="
+      systemctl status etcd --no-pager
+      echo ""
+      
+      echo "=== ETCD Configuration ==="
+      cat /etc/etcd/etcd.conf
+      echo ""
+      
+      echo "=== ETCD Logs (last 50 lines) ==="
+      journalctl -u etcd --no-pager -n 50
+      echo ""
+      
+      echo "=== Network Interface Info ==="
+      ip addr show
+      echo ""
+      
+      echo "=== Port Listening Status ==="
+      netstat -tlnp | grep -E "(2379|2380)"
+      echo ""
+      
+      echo "=== Certificate Status ==="
+      ls -la /etc/ssl/etcd/
+      echo ""
+      
+      echo "=== Test Certificate Validity ==="
+      openssl x509 -in /etc/ssl/etcd/server.crt -text -noout | grep -A 10 "Subject Alternative Name"
+      echo ""
+      
+      echo "=== Test ETCD Configuration Syntax ==="
+      sudo -u etcd /usr/local/bin/etcd --help | head -5
+    dest: /usr/local/bin/etcd-debug.sh
+    mode: '0755'
+
+- name: Create etcd configuration validator
+  copy:
+    content: |
+      #!/bin/bash
+      echo "=== ETCD Configuration Validation ==="
+      echo "Checking configuration file syntax..."
+      
+      if [ ! -f /etc/etcd/etcd.conf ]; then
+        echo "ERROR: Configuration file not found!"
+        exit 1
+      fi
+      
+      echo "Configuration file exists. Contents:"
+      cat /etc/etcd/etcd.conf
+      echo ""
+      
+      echo "Checking file permissions..."
+      ls -la /etc/etcd/etcd.conf
+      ls -la /var/lib/etcd/
+      ls -la /etc/ssl/etcd/
+      echo ""
+      
+      echo "Checking if ETCD can read the config (dry run)..."
+      sudo -u etcd bash -c 'source /etc/etcd/etcd.conf && echo "Environment loaded successfully"'
+    dest: /usr/local/bin/etcd-validate.sh
+    mode: '0755'
+
 - name: Deploy etcd configuration
   template:
     src: etcd.conf.j2
@@ -131,14 +283,21 @@
     owner: etcd
     group: etcd
     mode: '0644'
-  notify: Restart etcd
 
 - name: Deploy systemd service
   template:
     src: etcd.service.j2
     dest: /etc/systemd/system/etcd.service
     mode: '0644'
-  notify: Restart etcd
+
+- name: Validate etcd configuration
+  command: /usr/local/bin/etcd-validate.sh
+  register: config_validation
+  changed_when: false
+
+- name: Display configuration validation results
+  debug:
+    msg: "{{ config_validation.stdout_lines }}"
 
 - name: Enable etcd service
   systemd:
@@ -146,16 +305,86 @@
     enabled: yes
     daemon_reload: yes
 
+- name: Check if etcd is already running
+  systemd:
+    name: etcd
+  register: etcd_status
+
+- name: Stop etcd if running (for clean restart)
+  systemd:
+    name: etcd
+    state: stopped
+  when: etcd_status.status.ActiveState in ['active', 'activating', 'failed']
+
+- name: Wait for service to stop completely
+  pause:
+    seconds: 3
+  when: etcd_status.status.ActiveState in ['active', 'activating', 'failed']
+
 - name: Start etcd service
   systemd:
     name: etcd
     state: started
+
+- name: Wait for etcd process to start
+  pause:
+    seconds: 10
+
+- name: Wait for service to reach active state
+  systemd:
+    name: etcd
+  register: etcd_service_status
+  until: etcd_service_status.status.ActiveState == "active"
+  retries: 12
+  delay: 5
+
+- name: Display etcd service status
+  debug:
+    msg: "ETCD Service Status: {{ etcd_service_status.status.ActiveState }}"
 
 - name: Wait for etcd to be ready
   wait_for:
     host: "{{ ansible_host }}"
     port: 2379
     timeout: 60
+  register: etcd_ready
+  failed_when: false
+
+- name: Get detailed etcd service status
+  systemd:
+    name: etcd
+  register: etcd_service_detailed
+  when: etcd_ready.failed | default(false)
+
+- name: Display detailed service status on failure
+  debug:
+    msg: "ETCD Service Details: {{ etcd_service_detailed }}"
+  when: etcd_ready.failed | default(false)
+
+- name: Get etcd logs if service failed to start
+  command: journalctl -u etcd --no-pager -n 100
+  register: etcd_logs
+  when: etcd_ready.failed | default(false)
+
+- name: Display etcd logs on failure
+  debug:
+    msg: "ETCD Service Logs: {{ etcd_logs.stdout_lines }}"
+  when: etcd_ready.failed | default(false)
+
+- name: Run debugging script on failure
+  command: /usr/local/bin/etcd-debug.sh
+  register: debug_output
+  when: etcd_ready.failed | default(false)
+
+- name: Display debug output on failure
+  debug:
+    msg: "Debug Output: {{ debug_output.stdout_lines }}"
+  when: etcd_ready.failed | default(false)
+
+- name: Fail if etcd is not ready
+  fail:
+    msg: "ETCD failed to start. Check the logs above for details."
+  when: etcd_ready.failed | default(false)
 
 - name: Verify etcd cluster health
   command: >
@@ -166,7 +395,10 @@
     endpoint health
   register: etcd_health
   changed_when: false
+  failed_when: false
+  retries: 5
+  delay: 10
 
 - name: Display etcd health status
   debug:
-    msg: "{{ etcd_health.stdout }}"
+    msg: "{{ etcd_health.stdout if etcd_health.rc == 0 else 'ETCD Health Check Failed: ' + etcd_health.stderr }}"

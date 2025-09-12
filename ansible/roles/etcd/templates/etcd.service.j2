@@ -10,13 +10,15 @@ User=etcd
 Group=etcd
 EnvironmentFile=/etc/etcd/etcd.conf
 ExecStart=/usr/local/bin/etcd
-Restart=always
+Restart=on-failure
 RestartSec=5
 LimitNOFILE=40000
-TimeoutStartSec=0
-
-# Configure startup timeout
 TimeoutStartSec=300
+KillMode=mixed
+
+# Improve logging
+StandardOutput=journal
+StandardError=journal
 
 [Install]
 WantedBy=multi-user.target

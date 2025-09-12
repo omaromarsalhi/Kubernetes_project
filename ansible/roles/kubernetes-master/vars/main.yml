@@ -1,0 +1,25 @@
+---
+# vars file for kubernetes-master
+
+# K3S Configuration
+k3s_version: "v1.28.2+k3s1"
+k3s_token: "K3s-secure-token-2024"  # Change this to a secure token
+
+# ETCD Configuration
+etcd_endpoint: "18.209.164.58"  # HAProxy IP for ETCD
+
+# HAProxy Configuration
+haproxy_hostname: "lb"
+haproxy_ip: "18.209.164.58"
+
+# Certificate paths on target machines (automatically managed by role)
+etcd_ca_cert_dest: "/etc/pki/k3s/etcd-ca.crt"
+server_cert_dest: "/etc/pki/k3s/server.crt"
+server_key_dest: "/etc/pki/k3s/server.key"
+
+# K3S Configuration Options
+k3s_server_options:
+  - "--disable-etcd"
+  - "--cluster-init=false"
+  - "--kubelet-arg=cluster-dns=10.43.0.10"
+  - "--kubelet-arg=cluster-domain=cluster.local"

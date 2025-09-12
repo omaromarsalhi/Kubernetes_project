@@ -2,7 +2,7 @@
 - name: Install and Configure ETCD Cluster for Kubernetes
   hosts: etcd
   become: true
-  serial: 1  # Deploy to one node at a time for cluster formation
+  # Use parallel deployment for cluster formation but with proper coordination
 
   vars:
     etcd_nodes: "{{ groups['etcd'] }}"
