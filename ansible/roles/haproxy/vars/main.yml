@@ -12,3 +12,15 @@ master_hosts:
   - { name: master1, ip: "{{ hostvars['master1'].ansible_host }}" }
   - { name: master2, ip: "{{ hostvars['master2'].ansible_host }}" }
   # - { name: master3, ip: "{{ hostvars['master3'].ansible_host }}" }  # Uncomment if you have master3
+
+# Expose Kubernetes Dashboard via HAProxy
+dashboard_public_port: 8443      # LB external port
+dashboard_node_port: 32443       # NodePort on masters
+
+# Expose Simple App via HAProxy
+simple_app_public_port: 30080    # LB external port
+simple_app_node_port: 30080      # NodePort on masters
+
+# Expose Mongo Express via HAProxy
+mongo_express_public_port: 30081 # LB external port
+mongo_express_node_port: 30081   # NodePort on masters

@@ -124,6 +124,30 @@ resource "aws_security_group" "load_balancer" {
     cidr_blocks = ["0.0.0.0/0"]
   }
 
+  ingress {
+    description = "Kubernetes Dashboard via HAProxy"
+    from_port   = 8443
+    to_port     = 8443
+    protocol    = "tcp"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+
+  ingress {
+    description = "Simple App via HAProxy"
+    from_port   = 30080
+    to_port     = 30080
+    protocol    = "tcp"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+
+  ingress {
+    description = "Mongo Express via HAProxy"
+    from_port   = 30081
+    to_port     = 30081
+    protocol    = "tcp"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+
   egress {
     from_port   = 0
     to_port     = 0
@@ -155,6 +179,39 @@ resource "aws_security_group_rule" "lb_to_private_kube" {
   security_group_id        = aws_security_group.private_ec2.id
   source_security_group_id = aws_security_group.load_balancer.id
   description              = "Kubernetes API access from Load Balancer"
+}
+
+# Allow Load Balancer to access Dashboard NodePort on masters
+resource "aws_security_group_rule" "lb_to_dashboard_nodeport" {
+  type                     = "ingress"
+  from_port                = 32443
+  to_port                  = 32443
+  protocol                 = "tcp"
+  security_group_id        = aws_security_group.private_ec2.id
+  source_security_group_id = aws_security_group.load_balancer.id
+  description              = "Dashboard NodePort access from Load Balancer"
+}
+
+# Allow Load Balancer to access Simple App NodePort on masters
+resource "aws_security_group_rule" "lb_to_simple_app_nodeport" {
+  type                     = "ingress"
+  from_port                = 30080
+  to_port                  = 30080
+  protocol                 = "tcp"
+  security_group_id        = aws_security_group.private_ec2.id
+  source_security_group_id = aws_security_group.load_balancer.id
+  description              = "Simple App NodePort access from Load Balancer"
+}
+
+# Allow Load Balancer to access Mongo Express NodePort on masters
+resource "aws_security_group_rule" "lb_to_mongo_express_nodeport" {
+  type                     = "ingress"
+  from_port                = 30081
+  to_port                  = 30081
+  protocol                 = "tcp"
+  security_group_id        = aws_security_group.private_ec2.id
+  source_security_group_id = aws_security_group.load_balancer.id
+  description              = "Mongo Express NodePort access from Load Balancer"
 }
 
 # Allow ETCD peer communication between ETCD nodes

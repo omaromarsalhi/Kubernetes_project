@@ -5,7 +5,6 @@ etcd_download_url: "https://github.com/etcd-io/etcd/releases/download/v{{ etcd_v
 # ETCD cluster configuration
 etcd_cluster_name: "kubernetes-etcd"
 etcd_data_dir: "/var/lib/etcd"
-etcd_wal_dir: "/var/lib/etcd"
 
 # Network configuration
 etcd_listen_client_urls: "https://0.0.0.0:2379"
@@ -32,5 +31,5 @@ etcd_auto_tls: false
 etcd_peer_auto_tls: false
 
 # Logging
-etcd_log_level: "debug"
+etcd_log_level: "info"
 etcd_log_outputs: "systemd/journal"

@@ -1,0 +1,83 @@
+---
+- name: Install Kubernetes Dashboard and create admin user
+  hosts: masters
+  become: true
+  gather_facts: false
+
+  vars:
+    dashboard_version: v2.7.0  # Change if you want a newer version
+    dashboard_nodeport: 32443
+
+  tasks:
+    - name: Ensure kubectl works on this host
+      command: k3s kubectl version --client --output=yaml
+      register: kubectl_ver
+      changed_when: false
+      failed_when: kubectl_ver.rc != 0
+
+    - name: Install Kubernetes Dashboard (recommended manifest)
+      shell: |
+        k3s kubectl apply -f https://raw.githubusercontent.com/kubernetes/dashboard/{{ dashboard_version }}/aio/deploy/recommended.yaml
+      run_once: true
+
+    - name: Patch Dashboard service to NodePort on fixed port
+      shell: |
+        set -e
+        k3s kubectl -n kubernetes-dashboard patch svc kubernetes-dashboard \
+          -p '{"spec":{"type":"NodePort","ports":[{"port":443,"targetPort":8443,"protocol":"TCP","name":"https","nodePort":{{ dashboard_nodeport }} }]}}'
+      run_once: true
+
+    - name: Copy admin ServiceAccount manifest
+      copy:
+        src: ../files/dashboard-admin-user.yaml
+        dest: /tmp/dashboard-admin-user.yaml
+        mode: '0644'
+      run_once: true
+
+    - name: Apply admin ServiceAccount manifest
+      command: k3s kubectl apply -f /tmp/dashboard-admin-user.yaml
+      run_once: true
+
+    - name: Wait for dashboard pods to be Ready
+      shell: |
+        set -e
+        k3s kubectl -n kubernetes-dashboard rollout status deploy/kubernetes-dashboard --timeout=180s
+      register: rollout
+      retries: 3
+      delay: 10
+      until: rollout.rc == 0
+      run_once: true
+
+    - name: Get admin token (Kubernetes >=1.24)
+      shell: |
+        k3s kubectl -n kubernetes-dashboard create token admin-user
+      register: admin_token
+      changed_when: false
+      failed_when: false
+      run_once: true
+
+    - name: Fallback to legacy token retrieval (if needed)
+      shell: |
+        set -e
+        SA=admin-user
+        NS=kubernetes-dashboard
+        SECRET=$(k3s kubectl -n $NS get sa $SA -o jsonpath='{.secrets[0].name}')
+        k3s kubectl -n $NS get secret $SECRET -o go-template='{{`{{.data.token}}`}}' | base64 -d
+      register: legacy_token
+      changed_when: false
+      when: admin_token.rc != 0
+      run_once: true
+
+    - name: Show Dashboard login token
+      debug:
+        msg: "Dashboard Token: {{ (admin_token.stdout | default('')).strip() if admin_token.rc == 0 else (legacy_token.stdout | default('')).strip() }}"
+      run_once: true
+
+    - name: Print access instructions
+      debug:
+        msg: |
+          Access the Kubernetes Dashboard via your Load Balancer:
+          - URL: https://<LB_PUBLIC_IP>:8443
+          - Use the token printed above to log in.
+          Note: Certificate will be self-signed; your browser may warn you.
+      run_once: true

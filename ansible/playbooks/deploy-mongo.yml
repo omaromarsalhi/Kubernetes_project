@@ -1,0 +1,51 @@
+---
+# Deploy MongoDB and Mongo Express for interactive database testing
+
+- name: Deploy MongoDB and Mongo Express
+  hosts: masters[0]  # Run on first master
+  become: true
+  gather_facts: false
+
+  tasks:
+    - name: Copy MongoDB manifest
+      copy:
+        src: ../files/mongo.yaml
+        dest: /tmp/mongo.yaml
+        mode: '0644'
+
+    - name: Deploy MongoDB
+      command: k3s kubectl apply -f /tmp/mongo.yaml
+
+    - name: Wait for MongoDB to be ready
+      shell: |
+        k3s kubectl wait --for=condition=available --timeout=300s deploy/mongodb
+
+    - name: Copy Mongo Express manifest
+      copy:
+        src: ../files/mongo-express.yaml
+        dest: /tmp/mongo-express.yaml
+        mode: '0644'
+
+    - name: Deploy Mongo Express
+      command: k3s kubectl apply -f /tmp/mongo-express.yaml
+
+    - name: Wait for Mongo Express to be ready
+      shell: |
+        k3s kubectl wait --for=condition=available --timeout=300s deploy/mongo-express
+
+    - name: Get deployment status
+      command: k3s kubectl get pods,svc -l app=mongodb -l app=mongo-express
+      register: status
+
+    - name: Display status
+      debug:
+        msg: "{{ status.stdout }}"
+
+    - name: Display access info
+      debug:
+        msg: |
+          MongoDB and Mongo Express deployed!
+          Mongo Express (Web UI): http://{{ ansible_host }}:30081
+          Username: admin
+          Password: express123
+          (MongoDB root: admin/password123)

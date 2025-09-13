@@ -1,0 +1,11 @@
+---
+- name: Install K3s worker agents joining via HAProxy
+  hosts: workers
+  become: true
+
+  vars:
+    haproxy_host: "{{ hostvars['lb'].ansible_host | default('CHANGE_ME_LB_IP_OR_HOST') }}"
+    k3s_token: "CHANGE_ME_SECURE_TOKEN"
+
+  roles:
+    - role: k3s_agent

@@ -1,0 +1,21 @@
+---
+- name: Include common Kubernetes prerequisites
+  import_role:
+    name: k3s_common
+
+- name: Install K3s agent (worker)
+  environment:
+    K3S_KUBECONFIG_MODE: "644"
+  shell: |
+    curl -sfL https://get.k3s.io | sh -s - agent \
+      --token "{{ k3s_token }}" \
+      --server https://{{ haproxy_host }}:6443 \
+      --node-name "{{ inventory_hostname }}"
+  args:
+    creates: /etc/systemd/system/k3s-agent.service
+
+- name: Ensure k3s-agent service is enabled and running
+  systemd:
+    name: k3s-agent
+    enabled: yes
+    state: started

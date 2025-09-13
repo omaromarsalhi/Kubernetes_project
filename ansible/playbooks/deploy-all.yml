@@ -1,0 +1,14 @@
+---
+# Master deployment playbook to run all components in sequence
+# This playbook orchestrates the full Kubernetes infrastructure deployment
+
+
+- import_playbook: haproxy-playbook.yml
+
+- import_playbook: etcd-playbook.yml
+
+- import_playbook: k3s-masters.yml
+
+- import_playbook: k3s-workers.yml
+
+- import_playbook: k8s-dashboard.yml

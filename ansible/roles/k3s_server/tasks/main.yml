@@ -1,0 +1,113 @@
+---
+- name: Include common Kubernetes prerequisites
+  import_role:
+    name: k3s_common
+
+- name: Create TLS directory for k3s
+  file:
+    path: "{{ k3s_tls_dir }}"
+    state: directory
+    owner: root
+    group: root
+    mode: '0755'
+
+- name: Copy ETCD CA to masters (datastore TLS)
+  copy:
+    src: "{{ etcd_ca_src }}"
+    dest: "{{ k3s_tls_dir }}/etcd-ca.crt"
+    owner: root
+    group: root
+    mode: '0644'
+
+- name: Generate ETCD client key
+  command: openssl genrsa -out /home/ec2-user/k3s-etcd-client.key 2048
+  args:
+    creates: /home/ec2-user/k3s-etcd-client.key
+  delegate_to: localhost
+  run_once: true
+
+- name: Generate ETCD client CSR
+  command: >
+    openssl req -new -key /home/ec2-user/k3s-etcd-client.key
+    -subj "/CN=k3s-etcd-client"
+    -out /home/ec2-user/k3s-etcd-client.csr
+  args:
+    creates: /home/ec2-user/k3s-etcd-client.csr
+  delegate_to: localhost
+  run_once: true
+
+- name: Sign ETCD client certificate with cluster CA
+  copy:
+    dest: /home/ec2-user/k3s-etcd-client.ext
+    content: |
+      extendedKeyUsage = clientAuth
+  delegate_to: localhost
+  run_once: true
+
+- name: Create ETCD client certificate
+  command: >
+    openssl x509 -req -days 3650
+    -in /home/ec2-user/k3s-etcd-client.csr
+    -CA /home/ec2-user/etcd-ca.crt
+    -CAkey /home/ec2-user/etcd-ca.key
+    -CAcreateserial
+    -out /home/ec2-user/k3s-etcd-client.crt
+    -extfile /home/ec2-user/k3s-etcd-client.ext
+  args:
+    creates: /home/ec2-user/k3s-etcd-client.crt
+  delegate_to: localhost
+  run_once: true
+
+- name: Set ownership and permissions on client cert/key (control host)
+  file:
+    path: "/home/ec2-user/{{ item.path }}"
+    owner: ec2-user
+    group: ec2-user
+    mode: "{{ item.mode }}"
+  loop:
+    - { path: 'k3s-etcd-client.key', mode: '0600' }
+    - { path: 'k3s-etcd-client.crt', mode: '0644' }
+  delegate_to: localhost
+  run_once: true
+
+- name: Distribute ETCD client cert and key to masters
+  copy:
+    src: "/home/ec2-user/{{ item.src }}"
+    dest: "{{ k3s_tls_dir }}/{{ item.dest }}"
+    owner: root
+    group: root
+    mode: "{{ item.mode }}"
+  loop:
+    - { src: 'k3s-etcd-client.crt', dest: 'client.crt', mode: '0644' }
+    - { src: 'k3s-etcd-client.key', dest: 'client.key', mode: '0600' }
+
+- name: Install K3s server (control plane)
+  environment:
+    K3S_KUBECONFIG_MODE: "644"
+  shell: |
+    curl -sfL https://get.k3s.io | sh -s - server \
+      --token "{{ k3s_token }}" \
+      --datastore-endpoint "https://{{ haproxy_host }}:2379" \
+      --datastore-cafile "{{ k3s_tls_dir }}/etcd-ca.crt" \
+      --datastore-certfile "{{ k3s_tls_dir }}/client.crt" \
+      --datastore-keyfile "{{ k3s_tls_dir }}/client.key" \
+      --tls-san "{{ haproxy_host }}" \
+      --write-kubeconfig-mode 644
+  args:
+    creates: /etc/systemd/system/k3s.service
+
+- name: Ensure k3s service is enabled and running
+  systemd:
+    name: k3s
+    enabled: yes
+    state: started
+
+- name: Show cluster nodes from this master
+  command: k3s kubectl get nodes -o wide
+  register: k3s_nodes
+  changed_when: false
+  failed_when: false
+
+- name: Print nodes
+  debug:
+    var: k3s_nodes.stdout

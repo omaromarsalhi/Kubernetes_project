@@ -48,3 +48,31 @@ backend kube-main-backend
 {% for host in master_hosts %}
     server {{ host.name }} {{ host.ip }}:{{ kube_port }} check
 {% endfor %}
+
+frontend dashboard-main
+    bind *:{{ dashboard_public_port }}
+    retries 3
+    mode tcp
+    option tcplog
+    default_backend dashboard-main-backend
+
+backend dashboard-main-backend
+    mode tcp
+    balance roundrobin
+{% for host in master_hosts %}
+    server {{ host.name }} {{ host.ip }}:{{ dashboard_node_port }} check
+{% endfor %}
+
+frontend mongo-express-main
+    bind *:{{ mongo_express_public_port }}
+    retries 3
+    mode http
+    option httplog
+    default_backend mongo-express-main-backend
+
+backend mongo-express-main-backend
+    mode http
+    balance roundrobin
+{% for host in master_hosts %}
+    server {{ host.name }} {{ host.ip }}:{{ mongo_express_node_port }} check
+{% endfor %}

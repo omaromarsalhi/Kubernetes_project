@@ -1,0 +1,16 @@
+---
+- name: Install K3s control plane (masters) with external ETCD via HAProxy
+  hosts: masters
+  become: true
+
+  vars:
+    # REQUIRED: set these appropriately before running
+    haproxy_host: "{{ hostvars['lb'].ansible_host | default('CHANGE_ME_LB_IP_OR_HOST') }}"
+    k3s_token: "CHANGE_ME_SECURE_TOKEN"
+    # Paths where the ETCD role already put the CA on the Ansible control host (bastion)
+    etcd_ca_src: "/home/ec2-user/etcd-ca.crt"
+    # Where to place TLS on masters
+    k3s_tls_dir: "/etc/pki/k3s"
+
+  roles:
+    - role: k3s_server

@@ -1,0 +1,12 @@
+---
+- name: Apply sysctls
+  command: sysctl --system
+  changed_when: false
+
+- name: Reboot if kernel params require
+  reboot:
+    msg: "Rebooting to apply kernel parameter changes"
+    pre_reboot_delay: 2
+    post_reboot_delay: 20
+    reboot_timeout: 600
+  when: false  # switch to true if you want forced reboot

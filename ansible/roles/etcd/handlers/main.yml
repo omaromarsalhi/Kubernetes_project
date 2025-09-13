@@ -1,18 +1,6 @@
 ---
 - name: Restart etcd
-  block:
-    - name: Stop etcd service
-      systemd:
-        name: etcd
-        state: stopped
-      failed_when: false
-      
-    - name: Wait for service to stop
-      pause:
-        seconds: 5
-        
-    - name: Start etcd service
-      systemd:
-        name: etcd
-        state: started
-        daemon_reload: yes
+  systemd:
+    name: etcd
+    state: restarted
+    daemon_reload: yes
