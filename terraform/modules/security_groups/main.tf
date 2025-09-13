@@ -116,6 +116,14 @@ resource "aws_security_group" "load_balancer" {
     cidr_blocks = ["0.0.0.0/0"]
   }
 
+    ingress {
+      description = "Jenkins UI via HAProxy"
+      from_port   = 32000
+      to_port     = 32000
+      protocol    = "tcp"
+      cidr_blocks = ["0.0.0.0/0"]
+    }
+
   ingress {
     description = "Kubernetes API access via HAProxy"
     from_port   = 6443
