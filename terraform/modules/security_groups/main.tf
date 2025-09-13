@@ -141,6 +141,14 @@ resource "aws_security_group" "load_balancer" {
   }
 
   ingress {
+    description = "Longhorn UI via HAProxy"
+    from_port   = 30091
+    to_port     = 30091
+    protocol    = "tcp"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+
+  ingress {
     description = "Mongo Express via HAProxy"
     from_port   = 30081
     to_port     = 30081

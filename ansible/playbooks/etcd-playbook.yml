@@ -12,6 +12,7 @@
       {% set _ = members.append(host + '=https://' + hostvars[host]['ansible_host'] + ':2380') %}
       {% endfor %}
       {{ members | join(',') }}
+    lb_host: "{{ hostvars['lb'].ansible_host | default('') }}"
 
   pre_tasks:
     - name: Set etcd_initial_cluster variable
@@ -29,40 +30,59 @@
   post_tasks:
     - name: Wait for cluster to stabilize
       pause:
-        seconds: 10
+        seconds: 15
 
-    - name: Verify cluster members
+    - name: Wait for HAProxy ETCD endpoint
+      when: lb_host != ''
+      wait_for:
+        host: "{{ lb_host }}"
+        port: 2379
+        timeout: 60
+
+    - name: Verify cluster members via HAProxy
+      when: lb_host != ''
       command: >
-        /usr/local/bin/etcdctl --endpoints=https://{{ ansible_host }}:2379
+        /usr/local/bin/etcdctl --endpoints=https://{{ lb_host }}:2379
         --cacert=/etc/ssl/etcd/ca.crt
         --cert=/etc/ssl/etcd/server.crt
         --key=/etc/ssl/etcd/server.key
         member list
       register: cluster_members
       changed_when: false
+      retries: 6
+      delay: 10
+      until: cluster_members.rc == 0
+      run_once: true
+      delegate_to: "{{ groups['etcd'][0] }}"
 
     - name: Display cluster members
       debug:
-        msg: "{{ cluster_members.stdout }}"
+        msg: "{{ cluster_members.stdout | default('N/A') }}"
 
-    - name: Test cluster connectivity
+    - name: Test cluster connectivity via HAProxy (put)
+      when: lb_host != ''
       command: >
-        /usr/local/bin/etcdctl --endpoints=https://{{ ansible_host }}:2379
+        /usr/local/bin/etcdctl --endpoints=https://{{ lb_host }}:2379
         --cacert=/etc/ssl/etcd/ca.crt
         --cert=/etc/ssl/etcd/server.crt
         --key=/etc/ssl/etcd/server.key
         put test_key "ETCD cluster is working!"
       changed_when: false
+      run_once: true
+      delegate_to: "{{ groups['etcd'][0] }}"
 
-    - name: Verify test key
+    - name: Verify test key via HAProxy (get)
+      when: lb_host != ''
       command: >
-        /usr/local/bin/etcdctl --endpoints=https://{{ ansible_host }}:2379
+        /usr/local/bin/etcdctl --endpoints=https://{{ lb_host }}:2379
         --cacert=/etc/ssl/etcd/ca.crt
         --cert=/etc/ssl/etcd/server.crt
         --key=/etc/ssl/etcd/server.key
         get test_key
       register: test_result
       changed_when: false
+      run_once: true
+      delegate_to: "{{ groups['etcd'][0] }}"
 
     - name: Display test result
       debug:

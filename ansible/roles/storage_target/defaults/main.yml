@@ -1,0 +1,20 @@
+---
+# Defaults for storage_target role
+
+# Package and service names differ across distros; default to tgt
+storage_target_pkg_name: tgt
+storage_target_service_name: tgt
+
+# CHAP credentials (change in group_vars for production)
+iscsi_in_user: iscsi-user
+iscsi_in_pass: "ChangeMe_Inbound123!"
+iscsi_out_user: iscsi-target
+iscsi_out_pass: "ChangeMe_Outbound123!"
+
+# IQN base and target names
+iscsi_iqn_base: "iqn.2025-09.example.com"
+iscsi_targets:
+  - name: lun1
+    backing_device: "/dev/nvme1n1"
+  - name: lun2
+    backing_device: "/dev/nvme2n1"

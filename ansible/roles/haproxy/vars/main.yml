@@ -24,3 +24,7 @@ simple_app_node_port: 30080      # NodePort on masters
 # Expose Mongo Express via HAProxy
 mongo_express_public_port: 30081 # LB external port
 mongo_express_node_port: 30081   # NodePort on masters
+
+# Expose Longhorn UI via HAProxy
+longhorn_public_port: 30091      # LB external port
+longhorn_ui_node_port: 30090     # NodePort on masters

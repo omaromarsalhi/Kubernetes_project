@@ -76,3 +76,20 @@ backend mongo-express-main-backend
 {% for host in master_hosts %}
     server {{ host.name }} {{ host.ip }}:{{ mongo_express_node_port }} check
 {% endfor %}
+
+# Longhorn UI via Ingress (HTTP path /longhorn)
+frontend longhorn-main
+    bind *:{{ longhorn_public_port | default(30091) }}
+    mode http
+    option httplog
+    acl is_longhorn path_beg /longhorn
+    # Strip the /longhorn prefix so backend serves from /
+    http-request replace-path ^/longhorn/?(.*) /\1 if is_longhorn
+    default_backend longhorn-main-backend
+
+backend longhorn-main-backend
+    mode http
+    balance roundrobin
+{% for host in master_hosts %}
+    server {{ host.name }} {{ host.ip }}:{{ longhorn_ui_node_port | default(30090) }} check
+{% endfor %}

@@ -1,0 +1,80 @@
+---
+- name: Ensure kubectl is available
+  command: which kubectl
+  register: kubectl_check
+  changed_when: false
+
+- name: Apply Longhorn CRDs and components
+  command: >
+    kubectl apply -f {{ longhorn_manifest_url }}
+  environment:
+    KUBECONFIG: "{{ longhorn_kubeconfig }}"
+  register: longhorn_apply
+  changed_when: >-
+    {{ ('created' in (longhorn_apply.stdout | default(''))) or ('configured' in (longhorn_apply.stdout | default(''))) }}
+
+- name: Wait for longhorn-system namespace
+  command: >
+    kubectl get ns longhorn-system -o name
+  environment:
+    KUBECONFIG: "{{ longhorn_kubeconfig }}"
+  register: ns_exists
+  retries: 20
+  delay: 6
+  until: ns_exists.rc == 0
+  changed_when: false
+
+- name: Wait for Longhorn core pods to be Ready
+  shell: >
+    kubectl -n longhorn-system get pods -o json | \
+    python3 -c "import sys,json;d=json.load(sys.stdin);import sys;import time;import re;import itertools;print(0 if all(any(c.get('type')=='Ready' and c.get('status')=='True' for c in (cs.get('conditions') or [])) for cs in (i.get('status') for i in d.get('items',[]))) else 1)"
+  environment:
+    KUBECONFIG: "{{ longhorn_kubeconfig }}"
+  register: pods_ready
+  retries: 60
+  delay: 10
+  until: pods_ready.rc == 0
+  changed_when: false
+
+- name: Create/Update Longhorn UI NodePort Service
+  copy:
+    dest: /tmp/longhorn-ui-svc.yaml
+    content: |
+      apiVersion: v1
+      kind: Service
+      metadata:
+        name: longhorn-frontend-nodeport
+        namespace: longhorn-system
+      spec:
+        type: NodePort
+        selector:
+          app: longhorn-ui
+        ports:
+          - name: http
+            port: 80
+            targetPort: 8000
+            nodePort: {{ longhorn_ui_node_port }}
+  register: svc_file
+
+- name: Apply Longhorn UI NodePort Service
+  command: >
+    kubectl apply -f /tmp/longhorn-ui-svc.yaml
+  environment:
+    KUBECONFIG: "{{ longhorn_kubeconfig }}"
+  register: svc_apply
+  changed_when: >-
+    {{ ('created' in (svc_apply.stdout | default(''))) or ('configured' in (svc_apply.stdout | default(''))) }}
+
+- name: Render Longhorn Ingress manifest
+  template:
+    src: longhorn-ingress.yaml.j2
+    dest: /tmp/longhorn-ingress.yaml
+
+- name: Apply Longhorn Ingress
+  command: >
+    kubectl apply -f /tmp/longhorn-ingress.yaml
+  environment:
+    KUBECONFIG: "{{ longhorn_kubeconfig }}"
+  register: ingress_apply
+  changed_when: >-
+    {{ ('created' in (ingress_apply.stdout | default(''))) or ('configured' in (ingress_apply.stdout | default(''))) }}

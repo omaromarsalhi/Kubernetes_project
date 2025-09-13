@@ -1,0 +1,4 @@
+---
+longhorn_manifest_url: https://raw.githubusercontent.com/longhorn/longhorn/v1.5.1/deploy/longhorn.yaml
+longhorn_kubeconfig: /etc/rancher/k3s/k3s.yaml
+longhorn_ui_node_port: 30090

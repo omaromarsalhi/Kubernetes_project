@@ -1,0 +1,11 @@
+{% for target in iscsi_targets %}
+<target {{ iscsi_iqn_base }}:{{ target.name }}>
+    backing-store {{ target.backing_device }}
+{% for addr in storage_initiator_addresses %}
+    initiator-address {{ addr }}
+{% endfor %}
+    incominguser {{ iscsi_in_user }} {{ iscsi_in_pass }}
+    outgoinguser {{ iscsi_out_user }} {{ iscsi_out_pass }}
+</target>
+
+{% endfor %}

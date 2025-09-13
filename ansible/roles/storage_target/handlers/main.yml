@@ -1,0 +1,5 @@
+---
+- name: Restart iSCSI target
+  systemd:
+    name: "{{ storage_target_service_name }}"
+    state: restarted

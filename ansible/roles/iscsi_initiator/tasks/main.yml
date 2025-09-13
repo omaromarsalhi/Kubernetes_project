@@ -1,0 +1,37 @@
+---
+# Install and enable iSCSI initiator tools on Kubernetes nodes
+
+- name: Detect distribution family
+  ansible.builtin.setup:
+    filter: ansible_os_family
+  tags: [always]
+
+- name: Install iSCSI initiator packages (RedHat/Amazon)
+  ansible.builtin.package:
+    name: iscsi-initiator-utils
+    state: present
+  when: ansible_facts['os_family'] in ['RedHat']
+  become: true
+
+- name: Install iSCSI initiator packages (Debian/Ubuntu)
+  ansible.builtin.package:
+    name: open-iscsi
+    state: present
+  when: ansible_facts['os_family'] == 'Debian'
+  become: true
+
+- name: Ensure iSCSI services are enabled and running (RedHat/Amazon)
+  ansible.builtin.service:
+    name: iscsid
+    state: started
+    enabled: true
+  when: ansible_facts['os_family'] in ['RedHat']
+  become: true
+
+- name: Ensure iSCSI services are enabled and running (Debian/Ubuntu)
+  ansible.builtin.service:
+    name: open-iscsi
+    state: started
+    enabled: true
+  when: ansible_facts['os_family'] == 'Debian'
+  become: true

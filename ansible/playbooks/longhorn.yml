@@ -1,0 +1,12 @@
+---
+- name: Deploy Longhorn to Kubernetes cluster
+  hosts: masters
+  become: true
+  gather_facts: false
+
+  tasks:
+    - name: Run Longhorn role on first master only
+      import_role:
+        name: longhorn
+      run_once: true
+      delegate_to: "{{ groups['masters'][0] }}"

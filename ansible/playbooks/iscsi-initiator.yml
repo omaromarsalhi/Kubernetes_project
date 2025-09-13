@@ -1,0 +1,7 @@
+---
+- name: Install iSCSI initiator tools on masters and workers
+  hosts: masters:workers
+  become: true
+  gather_facts: true
+  roles:
+    - iscsi_initiator

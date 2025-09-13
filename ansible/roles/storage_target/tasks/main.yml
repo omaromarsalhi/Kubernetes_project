@@ -1,0 +1,140 @@
+---
+# Configure iSCSI Target using tgt on storage node
+
+- name: Ensure EPEL repo present on RedHat family (for tgt)
+  package:
+    name: epel-release
+    state: present
+  when: ansible_os_family == "RedHat" and ansible_distribution != "Amazon"
+
+- name: Decide target stack (LIO vs tgt)
+  set_fact:
+    use_lio: >-
+      {{ (ansible_distribution == 'Amazon') or (ansible_os_family == 'RedHat' and (ansible_distribution_major_version | default('0') | int) >= 8) }}
+
+- name: Select package and service names per OS
+  set_fact:
+    storage_target_service_name: >-
+      {{ 'target' if use_lio else 'tgt' }}
+    storage_target_pkg_name: >-
+      {{ 'targetcli' if use_lio else 'tgt' }}
+
+- name: Install target stack packages
+  package:
+    name: "{{ storage_target_pkg_name }}"
+    state: present
+
+- name: Normalize service name for OS family
+  set_fact:
+    storage_target_service_name: "{{ 'tgtd' if ansible_os_family == 'RedHat' else 'tgt' }}"
+  when: not use_lio
+
+- name: Ensure tgt config directory exists (conf.d)
+  file:
+    path: /etc/tgt/conf.d
+    state: directory
+    mode: '0755'
+  when: not use_lio
+
+- name: Ensure conf.d include present in targets.conf
+  lineinfile:
+    path: /etc/tgt/targets.conf
+    regexp: '^include\s+/etc/tgt/conf\.d/\*\.conf$'
+    line: 'include /etc/tgt/conf.d/*.conf'
+    create: yes
+  when: not use_lio
+
+- name: Build initiator address list from masters and workers
+  set_fact:
+    storage_initiator_addresses: "{{ (groups['masters'] | default([]) + groups['workers'] | default([])) | map('extract', hostvars, 'ansible_host') | list }}"
+
+- name: Render iSCSI target configuration (tgt)
+  template:
+    src: iscsi.conf.j2
+    dest: /etc/tgt/conf.d/iscsi.conf
+    mode: '0644'
+  notify: Restart iSCSI target
+  when: not use_lio
+
+- name: Read existing LIO saveconfig if present
+  slurp:
+    src: /etc/target/saveconfig.json
+  register: lio_save
+  ignore_errors: true
+  when: use_lio
+
+- name: Set current LIO config text fact
+  set_fact:
+    lio_save_text: "{{ (lio_save.content | b64decode) if (lio_save is defined and lio_save.content is defined) else '' }}"
+  when: use_lio
+
+- name: Create LIO backstores
+  command: >
+    targetcli /backstores/block create name={{ item.name }} dev={{ item.backing_device }}
+  loop: "{{ iscsi_targets }}"
+  when: use_lio
+  register: lio_backstore_result
+  failed_when: lio_backstore_result.rc != 0 and ('exists' not in lio_backstore_result.stderr | default(''))
+  changed_when: lio_backstore_result.rc == 0
+
+- name: Create LIO iSCSI targets
+  command: >
+    targetcli /iscsi create {{ iscsi_iqn_base }}:{{ item.name }}
+  loop: "{{ iscsi_targets }}"
+  when: use_lio
+  register: lio_target_result
+  failed_when: lio_target_result.rc != 0 and ('exists' not in lio_target_result.stderr | default(''))
+  changed_when: lio_target_result.rc == 0
+
+- name: Configure LIO target attributes (enable auth, ACLs)
+  command: >
+    targetcli /iscsi/{{ iscsi_iqn_base }}:{{ item.name }}/tpg1 set attribute authentication=1 demo_mode_write_protect=0 generate_node_acls=1
+  loop: "{{ iscsi_targets }}"
+  when: use_lio
+
+- name: Configure LIO CHAP credentials (mutual)
+  command: >
+    targetcli /iscsi/{{ iscsi_iqn_base }}:{{ item.name }}/tpg1 set auth userid={{ iscsi_in_user }} password={{ iscsi_in_pass }} mutual_userid={{ iscsi_out_user }} mutual_password={{ iscsi_out_pass }}
+  loop: "{{ iscsi_targets }}"
+  when: use_lio
+
+- name: Create LIO LUNs
+  command: >
+    targetcli /iscsi/{{ iscsi_iqn_base }}:{{ item.name }}/tpg1/luns create /backstores/block/{{ item.name }}
+  loop: "{{ iscsi_targets }}"
+  when: use_lio
+  register: lio_lun_result
+  failed_when: lio_lun_result.rc != 0 and ('exists' not in lio_lun_result.stderr | default(''))
+  changed_when: lio_lun_result.rc == 0
+
+- name: Save LIO configuration
+  command: targetcli saveconfig
+  when: use_lio
+
+- name: Enable and start iSCSI target service
+  systemd:
+    name: "{{ storage_target_service_name }}"
+    enabled: yes
+    state: started
+
+- name: Validate iSCSI targets (tgt)
+  command: tgtadm --mode target --op show
+  register: tgt_show
+  changed_when: false
+  when: not use_lio
+
+- name: Print tgt target summary
+  debug:
+    var: tgt_show.stdout
+  when: not use_lio
+
+- name: Validate LIO targets
+  command: targetcli ls
+  register: lio_ls
+  changed_when: false
+  when: use_lio
+
+- name: Print LIO target summary
+  debug:
+    var: lio_ls.stdout
+  when: use_lio
