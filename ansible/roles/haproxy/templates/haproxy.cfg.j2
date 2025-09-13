@@ -94,14 +94,4 @@ backend longhorn-main-backend
     server {{ host.name }} {{ host.ip }}:{{ longhorn_ui_node_port | default(30090) }} check
 {% endfor %}
 
-# Jenkins UI
-frontend jenkins-main
-     bind *:{{ jenkins_public_port | default(32000) }}
-     mode http
-     option httplog
-     default_backend jenkins-main-backend
 
-backend jenkins-main-backend
-     mode http
-     balance roundrobin
-     server jenkins_node 10.0.12.221:32725 check
