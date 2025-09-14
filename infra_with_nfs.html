@@ -227,7 +227,7 @@ flowchart TB
             
             subgraph AZ_1B["Availability Zone 1b"]
                 subgraph Public_1B["Public Subnet<br>10.0.21.0/24"]
-                    LoadBalancer["Load Balancer<br>EC2 + Nginx"]
+                    LoadBalancer["Load Balancer<br>EC2 + HAProxy"]
                     NAT_1B["NAT Gateway 1b"]
                 end
                 
