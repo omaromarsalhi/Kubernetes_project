@@ -1,0 +1,15 @@
+name: My Workflow
+on:
+  push:
+    branches:
+      - test
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Run your tasks
+        run: |
+          echo "Workflow triggered by push to your-specific-branch-name"
+          # Add your actual build/test/deploy commands here
